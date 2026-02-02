@@ -14,15 +14,16 @@ datasource db {
 }
 
 model User {
-  id            String    @id
+  id            String        @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean       @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   sessions      Session[]
   accounts      Account[]
+  bankAccounts  BankAccount[]
 
   @@unique([email])
   @@map("user")
@@ -74,4 +75,62 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+enum ACCOUNT_PROVIDER {
+  TD_BANK
+  AMEX
+  SCOTIA_BANK
+  WEALTH_SIMPLE
+  RBC
+  BMO
+}
+
+enum ACCOUNT_TYPE {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  CASH
+}
+
+model BankAccount {
+  id           String           @id @default(uuid())
+  name         String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  type         ACCOUNT_TYPE
+  provider     ACCOUNT_PROVIDER
+  user         User?            @relation(fields: [userId], references: [id])
+  userId       String?
+  transactions Transaction[]
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  name         String
+  colour       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+enum TRANSACTION_TYPE {
+  EXPENSE
+  INCOME
+}
+
+model Transaction {
+  id            String           @id @default(uuid())
+  type          TRANSACTION_TYPE
+  merchant      String
+  amount        Int
+  notes         String?
+  review        Boolean          @default(false)
+  date          DateTime         @default(now())
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  category      Category         @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id])
+  bankAccountId String
 }
