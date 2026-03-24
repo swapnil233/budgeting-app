@@ -8,6 +8,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const categories = await prisma.category.findMany({
+    where: { userId: session.user.id },
     orderBy: [{ group: "asc" }, { name: "asc" }],
   });
 
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
       name: body.name,
       group: body.group,
       budgetAmount: body.budgetAmount ?? 0,
+      userId: session.user.id,
     },
   });
 

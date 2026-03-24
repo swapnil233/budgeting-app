@@ -14,7 +14,7 @@ export async function PUT(
   const body = await req.json();
 
   const category = await prisma.category.update({
-    where: { id },
+    where: { id, userId: session.user.id },
     data: {
       name: body.name,
       group: body.group,
@@ -33,6 +33,6 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  await prisma.category.delete({ where: { id } });
+  await prisma.category.delete({ where: { id, userId: session.user.id } });
   return NextResponse.json({ success: true });
 }

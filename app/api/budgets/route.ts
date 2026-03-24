@@ -7,6 +7,8 @@ export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = session.user.id;
+
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
   const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest) {
   const end = new Date(year, month, 0, 23, 59, 59);
 
   const [categories, spendByCategory, inflowTotal] = await Promise.all([
-    prisma.category.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] }),
+    prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
     prisma.transaction.groupBy({
       by: ["categoryId"],
       where: {
