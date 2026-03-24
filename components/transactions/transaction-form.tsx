@@ -91,8 +91,9 @@ export function TransactionForm({
     }
   }
 
-  const groupOrder = ["FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
+  const groupOrder = ["INCOME", "FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
   const groupLabels: Record<string, string> = {
+    INCOME: "Income",
     FIXED: "Fixed",
     SUBSCRIPTIONS: "Subscriptions",
     FOOD: "Food",
