@@ -9,24 +9,34 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatCurrency, dollarsToCents, cn } from "@/lib/utils";
+import { IconCheck, IconEdit, IconTrash, IconX } from "@tabler/icons-react";
 import {
-  IconCheck,
-  IconChevronDown,
-  IconChevronUp,
-  IconEdit,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type SortingState,
-} from "@tanstack/react-table";
+  AllCommunityModule,
+  ModuleRegistry,
+  themeQuartz,
+  colorSchemeDark,
+  type ColDef,
+  type ICellRendererParams,
+} from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
+import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
+
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+const lightTheme = themeQuartz.withParams({
+  fontFamily: "inherit",
+  fontSize: 13,
+  rowHeight: 40,
+  headerHeight: 36,
+  borderRadius: 0,
+  wrapperBorderRadius: 0,
+  cellHorizontalPaddingScale: 1.2,
+});
+const darkTheme = lightTheme.withPart(colorSchemeDark);
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Category = { id: string; name: string; group: string };
 type BankAccount = { id: string; name: string };
@@ -44,18 +54,17 @@ type Transaction = {
   bankAccount: BankAccount;
 };
 
-type AddRow = {
-  date: string;
-  type: "EXPENSE" | "INCOME";
-  merchant: string;
-  amount: string;
-  categoryId: string;
-  bankAccountId: string;
-  notes: string;
+type GridContext = {
+  categories: Category[];
+  bankAccounts: BankAccount[];
+  onSaved: () => void;
+  onEdit: (t: Transaction) => void;
+  onDelete: (id: string) => void;
 };
 
-const GROUP_ORDER = ["FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
+const GROUP_ORDER = ["INCOME", "FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
 const GROUP_LABELS: Record<string, string> = {
+  INCOME: "Income",
   FIXED: "Fixed",
   SUBSCRIPTIONS: "Subscriptions",
   FOOD: "Food",
@@ -64,27 +73,20 @@ const GROUP_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-// Shared input class for table cells
-const cellInput =
-  "w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring transition-colors placeholder:text-muted-foreground/50";
-const cellSelect =
-  "w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm outline-none focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring transition-colors cursor-pointer appearance-none";
+// Shared compact input styles
+const inp = "h-7 rounded border-0 border-b border-border/60 bg-transparent px-1.5 text-sm outline-none focus:border-primary focus:bg-muted/40 transition-colors placeholder:text-muted-foreground/40 w-full";
+const sel = `${inp} cursor-pointer`;
 
-interface AddRowFormProps {
-  categories: Category[];
-  bankAccounts: BankAccount[];
-  onSave: () => void;
-}
+// ── Pinned add-row renderer ───────────────────────────────────────────────────
 
-function AddRowForm({ categories, bankAccounts, onSave }: AddRowFormProps) {
-  const router = useRouter();
+function AddRowCellRenderer({ context }: ICellRendererParams) {
+  const { categories, bankAccounts, onSaved } = context as GridContext;
   const merchantRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [row, setRow] = useState<AddRow>({
+  const [row, setRow] = useState({
     date: new Date().toISOString().split("T")[0],
-    type: "EXPENSE",
+    type: "EXPENSE" as "EXPENSE" | "INCOME",
     merchant: "",
     amount: "",
     categoryId: categories[0]?.id ?? "",
@@ -92,13 +94,26 @@ function AddRowForm({ categories, bankAccounts, onSave }: AddRowFormProps) {
     notes: "",
   });
 
-  function set<K extends keyof AddRow>(key: K, value: AddRow[K]) {
-    setRow((prev) => ({ ...prev, [key]: value }));
+  function set<K extends keyof typeof row>(key: K, value: (typeof row)[K]) {
+    setRow((p) => ({ ...p, [key]: value }));
+  }
+  function reset() {
+    setRow({
+      date: new Date().toISOString().split("T")[0],
+      type: "EXPENSE",
+      merchant: "",
+      amount: "",
+      categoryId: categories[0]?.id ?? "",
+      bankAccountId: bankAccounts[0]?.id ?? "",
+      notes: "",
+    });
+    setError(null);
+    merchantRef.current?.focus();
   }
 
   async function save() {
     if (!row.merchant.trim() || !row.amount || !row.categoryId || !row.bankAccountId) {
-      setError("Merchant, amount, category, and account are required.");
+      setError("Fill in merchant, amount, category & account.");
       return;
     }
     setSaving(true);
@@ -118,20 +133,9 @@ function AddRowForm({ categories, bankAccounts, onSave }: AddRowFormProps) {
           bankAccountId: row.bankAccountId,
         }),
       });
-      if (!res.ok) throw new Error("Failed");
-      // Reset form
-      setRow({
-        date: new Date().toISOString().split("T")[0],
-        type: "EXPENSE",
-        merchant: "",
-        amount: "",
-        categoryId: categories[0]?.id ?? "",
-        bankAccountId: bankAccounts[0]?.id ?? "",
-        notes: "",
-      });
-      merchantRef.current?.focus();
-      router.refresh();
-      onSave();
+      if (!res.ok) throw new Error();
+      reset();
+      onSaved();
     } catch {
       setError("Failed to save.");
     } finally {
@@ -140,172 +144,152 @@ function AddRowForm({ categories, bankAccounts, onSave }: AddRowFormProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      save();
-    }
-    if (e.key === "Escape") {
-      setRow({
-        date: new Date().toISOString().split("T")[0],
-        type: "EXPENSE",
-        merchant: "",
-        amount: "",
-        categoryId: categories[0]?.id ?? "",
-        bankAccountId: bankAccounts[0]?.id ?? "",
-        notes: "",
-      });
-      setError(null);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
+    if (e.key === "Escape") reset();
   }
 
-  const categoriesByGroup = GROUP_ORDER.reduce<Record<string, Category[]>>((acc, group) => {
-    acc[group] = categories.filter((c) => c.group === group);
+  const byGroup = GROUP_ORDER.reduce<Record<string, Category[]>>((acc, g) => {
+    acc[g] = categories.filter((c) => c.group === g);
     return acc;
   }, {});
 
   return (
-    <>
-      <tr
-        className="border-b bg-muted/30 hover:bg-muted/40"
-        onKeyDown={handleKeyDown}
+    <div
+      className="flex h-full w-full items-center gap-1.5 px-2"
+      onKeyDown={handleKeyDown}
+    >
+      {/* Date */}
+      <input
+        type="date"
+        className={cn(inp, "w-[118px] shrink-0")}
+        value={row.date}
+        onChange={(e) => set("date", e.target.value)}
+      />
+      {/* Type */}
+      <select
+        className={cn(sel, "w-[90px] shrink-0")}
+        value={row.type}
+        onChange={(e) => set("type", e.target.value as "EXPENSE" | "INCOME")}
       >
-        {/* Date */}
-        <td className="px-2 py-1.5">
-          <input
-            type="date"
-            className={cellInput}
-            value={row.date}
-            onChange={(e) => set("date", e.target.value)}
-          />
-        </td>
-        {/* Type */}
-        <td className="px-2 py-1.5">
-          <select
-            className={cellSelect}
-            value={row.type}
-            onChange={(e) => set("type", e.target.value as "EXPENSE" | "INCOME")}
-          >
-            <option value="EXPENSE">Expense</option>
-            <option value="INCOME">Income</option>
-          </select>
-        </td>
-        {/* Merchant */}
-        <td className="px-2 py-1.5">
-          <input
-            ref={merchantRef}
-            type="text"
-            className={cellInput}
-            placeholder="Merchant"
-            value={row.merchant}
-            onChange={(e) => set("merchant", e.target.value)}
-            autoFocus
-          />
-        </td>
-        {/* Amount */}
-        <td className="px-2 py-1.5">
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className={cn(cellInput, "text-right")}
-            placeholder="0.00"
-            value={row.amount}
-            onChange={(e) => set("amount", e.target.value)}
-          />
-        </td>
-        {/* Category */}
-        <td className="px-2 py-1.5 hidden md:table-cell">
-          <select
-            className={cellSelect}
-            value={row.categoryId}
-            onChange={(e) => set("categoryId", e.target.value)}
-          >
-            {GROUP_ORDER.map((group) =>
-              categoriesByGroup[group]?.length > 0 ? (
-                <optgroup key={group} label={GROUP_LABELS[group]}>
-                  {categoriesByGroup[group].map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null
-            )}
-          </select>
-        </td>
-        {/* Account */}
-        <td className="px-2 py-1.5 hidden lg:table-cell">
-          <select
-            className={cellSelect}
-            value={row.bankAccountId}
-            onChange={(e) => set("bankAccountId", e.target.value)}
-          >
-            {bankAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </td>
-        {/* Notes */}
-        <td className="px-2 py-1.5 hidden xl:table-cell">
-          <input
-            type="text"
-            className={cellInput}
-            placeholder="Notes"
-            value={row.notes}
-            onChange={(e) => set("notes", e.target.value)}
-          />
-        </td>
-        {/* Actions */}
-        <td className="px-2 py-1.5">
-          <div className="flex items-center gap-1">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={save}
-              disabled={saving}
-              title="Save (Enter)"
-            >
-              <IconCheck className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-muted-foreground"
-              onClick={() => {
-                setRow({
-                  date: new Date().toISOString().split("T")[0],
-                  type: "EXPENSE",
-                  merchant: "",
-                  amount: "",
-                  categoryId: categories[0]?.id ?? "",
-                  bankAccountId: bankAccounts[0]?.id ?? "",
-                  notes: "",
-                });
-                setError(null);
-              }}
-              title="Clear (Esc)"
-            >
-              <IconX className="size-4" />
-            </Button>
-          </div>
-        </td>
-      </tr>
-      {error && (
-        <tr className="bg-destructive/5">
-          <td colSpan={8} className="px-3 py-1 text-xs text-destructive">
-            {error}
-          </td>
-        </tr>
-      )}
-    </>
+        <option value="EXPENSE">Expense</option>
+        <option value="INCOME">Income</option>
+      </select>
+      {/* Merchant */}
+      <input
+        ref={merchantRef}
+        type="text"
+        className={cn(inp, "min-w-0 flex-[2]")}
+        placeholder="Merchant…"
+        value={row.merchant}
+        onChange={(e) => set("merchant", e.target.value)}
+        autoFocus
+      />
+      {/* Amount */}
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        className={cn(inp, "w-[88px] shrink-0 text-right")}
+        placeholder="0.00"
+        value={row.amount}
+        onChange={(e) => set("amount", e.target.value)}
+      />
+      {/* Category */}
+      <select
+        className={cn(sel, "w-[140px] shrink-0")}
+        value={row.categoryId}
+        onChange={(e) => set("categoryId", e.target.value)}
+      >
+        {GROUP_ORDER.map((g) =>
+          byGroup[g]?.length ? (
+            <optgroup key={g} label={GROUP_LABELS[g]}>
+              {byGroup[g].map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </optgroup>
+          ) : null
+        )}
+      </select>
+      {/* Account */}
+      <select
+        className={cn(sel, "w-[120px] shrink-0")}
+        value={row.bankAccountId}
+        onChange={(e) => set("bankAccountId", e.target.value)}
+      >
+        {bankAccounts.map((a) => (
+          <option key={a.id} value={a.id}>{a.name}</option>
+        ))}
+      </select>
+      {/* Notes */}
+      <input
+        type="text"
+        className={cn(inp, "flex-1 min-w-0")}
+        placeholder="Notes…"
+        value={row.notes}
+        onChange={(e) => set("notes", e.target.value)}
+      />
+      {/* Actions */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        {error && <span className="text-xs text-destructive mr-1">{error}</span>}
+        <Button size="icon" variant="ghost"
+          className="h-7 w-7 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
+          onClick={save} disabled={saving} title="Save (Enter)">
+          <IconCheck className="size-4" />
+        </Button>
+        <Button size="icon" variant="ghost"
+          className="h-7 w-7 text-muted-foreground"
+          onClick={reset} title="Clear (Esc)">
+          <IconX className="size-4" />
+        </Button>
+      </div>
+    </div>
   );
 }
 
-// Column helper
-const columnHelper = createColumnHelper<Transaction>();
+// ── Regular cell renderers ────────────────────────────────────────────────────
+
+function TypeBadge({ value }: ICellRendererParams) {
+  return (
+    <span className={cn(
+      "rounded px-1.5 py-0.5 text-xs font-medium",
+      value === "INCOME"
+        ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
+        : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+    )}>
+      {value === "INCOME" ? "Income" : "Expense"}
+    </span>
+  );
+}
+
+function AmountCell({ data }: ICellRendererParams<Transaction>) {
+  if (!data) return null;
+  return (
+    <span className={cn(
+      "font-medium tabular-nums",
+      data.type === "INCOME"
+        ? "text-green-600 dark:text-green-400"
+        : "text-red-600 dark:text-red-400",
+    )}>
+      {data.type === "INCOME" ? "+" : "−"}{formatCurrency(data.amount)}
+    </span>
+  );
+}
+
+function MerchantCell({ data }: ICellRendererParams<Transaction>) {
+  if (!data) return null;
+  return (
+    <span className="font-medium">
+      {data.merchant}
+      {data.review && (
+        <span className="ml-2 rounded bg-amber-100 px-1 py-0.5 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+          Review
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 interface TransactionsTableProps {
   transactions: Transaction[];
@@ -313,232 +297,146 @@ interface TransactionsTableProps {
   bankAccounts: BankAccount[];
 }
 
-export function TransactionsTable({
-  transactions,
-  categories,
-  bankAccounts,
-}: TransactionsTableProps) {
+export function TransactionsTable({ transactions, categories, bankAccounts }: TransactionsTableProps) {
   const router = useRouter();
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const { resolvedTheme } = useTheme();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [quickFilter, setQuickFilter] = useState("");
 
-  async function handleDelete(id: string) {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Delete this transaction?")) return;
-    setDeletingId(id);
-    try {
-      await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-      router.refresh();
-    } finally {
-      setDeletingId(null);
-    }
-  }
+    await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+    router.refresh();
+  }, [router]);
 
-  const columns = [
-    columnHelper.accessor("date", {
-      header: "Date",
-      cell: (info) =>
-        new Date(info.getValue()).toLocaleDateString("en-CA", {
-          month: "short",
-          day: "numeric",
-        }),
-      sortingFn: "datetime",
-    }),
-    columnHelper.accessor("type", {
-      header: "Type",
-      cell: (info) => (
-        <span
-          className={cn(
-            "rounded px-1.5 py-0.5 text-xs font-medium",
-            info.getValue() === "INCOME"
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          )}
-        >
-          {info.getValue() === "INCOME" ? "Income" : "Expense"}
-        </span>
-      ),
-    }),
-    columnHelper.accessor("merchant", {
-      header: "Merchant",
-      cell: (info) => (
-        <span className="font-medium">
-          {info.getValue()}
-          {info.row.original.review && (
-            <span className="ml-2 rounded bg-amber-100 px-1 py-0.5 text-xs text-amber-700">
-              Review
-            </span>
-          )}
-        </span>
-      ),
-    }),
-    columnHelper.accessor("amount", {
-      header: () => <span className="block text-right">Amount</span>,
-      cell: (info) => (
-        <span
-          className={cn(
-            "block text-right font-medium tabular-nums",
-            info.row.original.type === "INCOME" ? "text-green-600" : "text-red-600"
-          )}
-        >
-          {info.row.original.type === "INCOME" ? "+" : "−"}
-          {formatCurrency(info.getValue())}
-        </span>
-      ),
-      sortingFn: "basic",
-    }),
-    columnHelper.accessor((row) => row.category.name, {
-      id: "category",
-      header: "Category",
-      cell: (info) => (
-        <span className="text-muted-foreground">{info.getValue()}</span>
-      ),
-    }),
-    columnHelper.accessor((row) => row.bankAccount.name, {
-      id: "account",
-      header: "Account",
-      cell: (info) => (
-        <span className="text-muted-foreground">{info.getValue()}</span>
-      ),
-    }),
-    columnHelper.accessor("notes", {
-      header: "Notes",
-      cell: (info) => (
-        <span className="text-muted-foreground">{info.getValue() ?? "—"}</span>
-      ),
-      enableSorting: false,
-    }),
-    columnHelper.display({
-      id: "actions",
-      header: "",
-      cell: (info) => (
-        <div className="flex items-center gap-1 justify-end">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setEditingTransaction(info.row.original)}
-          >
-            <IconEdit className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
-            onClick={() => handleDelete(info.row.original.id)}
-            disabled={deletingId === info.row.original.id}
-          >
-            <IconTrash className="size-3.5" />
-          </Button>
-        </div>
-      ),
-    }),
-  ];
+  const context: GridContext = useMemo(() => ({
+    categories,
+    bankAccounts,
+    onSaved: () => router.refresh(),
+    onEdit: setEditingTransaction,
+    onDelete: handleDelete,
+  }), [categories, bankAccounts, router, handleDelete]);
 
-  const table = useReactTable({
-    data: transactions,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
+  const ActionCell = useCallback(({ data }: ICellRendererParams<Transaction>) => {
+    if (!data) return null;
+    return (
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" className="h-7 w-7"
+          onClick={() => setEditingTransaction(data)}>
+          <IconEdit className="size-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={() => handleDelete(data.id)}>
+          <IconTrash className="size-3.5" />
+        </Button>
+      </div>
+    );
+  }, [handleDelete]);
+
+  const colDefs: ColDef<Transaction>[] = useMemo(() => [
+    {
+      field: "date",
+      headerName: "Date",
+      width: 110,
+      sort: "desc",
+      valueFormatter: ({ value }) =>
+        new Date(value).toLocaleDateString("en-CA", { month: "short", day: "numeric" }),
+    },
+    {
+      field: "type",
+      headerName: "Type",
+      width: 105,
+      cellRenderer: TypeBadge,
+    },
+    {
+      field: "merchant",
+      headerName: "Merchant",
+      flex: 2,
+      minWidth: 140,
+      cellRenderer: MerchantCell,
+    },
+    {
+      field: "amount",
+      headerName: "Amount",
+      width: 120,
+      headerClass: "ag-right-aligned-header",
+      cellStyle: { display: "flex", justifyContent: "flex-end" },
+      cellRenderer: AmountCell,
+    },
+    {
+      headerName: "Category",
+      flex: 1,
+      minWidth: 120,
+      valueGetter: ({ data }) => data?.category?.name ?? "",
+    },
+    {
+      headerName: "Account",
+      width: 130,
+      valueGetter: ({ data }) => data?.bankAccount?.name ?? "",
+    },
+    {
+      field: "notes",
+      headerName: "Notes",
+      flex: 1,
+      minWidth: 80,
+      valueFormatter: ({ value }) => value ?? "—",
+    },
+    {
+      headerName: "",
+      width: 84,
+      sortable: false,
+      resizable: false,
+      cellRenderer: ActionCell,
+    },
+  ], [ActionCell]);
+
+  const theme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
   return (
     <>
-      <div className="rounded-lg border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="border-b bg-muted/50 text-left">
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className={cn(
-                        "px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider whitespace-nowrap select-none",
-                        header.id === "category" && "hidden md:table-cell",
-                        header.id === "account" && "hidden lg:table-cell",
-                        header.id === "notes" && "hidden xl:table-cell",
-                        header.column.getCanSort() && "cursor-pointer hover:text-foreground"
-                      )}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <div className="flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <span className="text-muted-foreground/50">
-                            {header.column.getIsSorted() === "asc" ? (
-                              <IconChevronUp className="size-3" />
-                            ) : header.column.getIsSorted() === "desc" ? (
-                              <IconChevronDown className="size-3" />
-                            ) : (
-                              <IconChevronDown className="size-3 opacity-30" />
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              <AddRowForm
-                categories={categories}
-                bankAccounts={bankAccounts}
-                onSave={() => {}}
-              />
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-4 py-12 text-center text-sm text-muted-foreground"
-                  >
-                    No transactions this month. Add one above.
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b last:border-0 hover:bg-muted/20 transition-colors"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className={cn(
-                          "px-3 py-2.5",
-                          cell.column.id === "category" && "hidden md:table-cell",
-                          cell.column.id === "account" && "hidden lg:table-cell",
-                          cell.column.id === "notes" && "hidden xl:table-cell max-w-[180px] truncate",
-                          cell.column.id === "actions" && "w-20"
-                        )}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="flex items-center gap-2 pb-2">
+        <input
+          type="search"
+          placeholder="Search transactions…"
+          className="h-8 w-64 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+          value={quickFilter}
+          onChange={(e) => setQuickFilter(e.target.value)}
+        />
         {transactions.length > 0 && (
-          <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/20">
+          <span className="ml-auto text-xs text-muted-foreground">
             {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
-          </div>
+          </span>
         )}
       </div>
 
-      <Sheet
-        open={!!editingTransaction}
-        onOpenChange={(open) => !open && setEditingTransaction(null)}
-      >
+      <div className="rounded-lg border overflow-hidden">
+        <AgGridReact<Transaction>
+          theme={theme}
+          rowData={transactions}
+          columnDefs={colDefs}
+          context={context}
+          quickFilterText={quickFilter}
+          domLayout="autoHeight"
+          defaultColDef={{ sortable: true, resizable: true }}
+          pinnedTopRowData={[{}]}
+          isFullWidthRow={(params) => params.rowNode.rowPinned === "top"}
+          fullWidthCellRenderer={AddRowCellRenderer}
+          getRowHeight={(params) => (params.node.rowPinned === "top" ? 48 : 40)}
+          noRowsOverlayComponent={() => (
+            <span className="text-sm text-muted-foreground">
+              No transactions this month — add one above.
+            </span>
+          )}
+          suppressCellFocus
+          suppressMovableColumns
+          animateRows
+        />
+      </div>
+
+      <Sheet open={!!editingTransaction} onOpenChange={(open) => !open && setEditingTransaction(null)}>
         <SheetContent className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Edit Transaction</SheetTitle>
-          </SheetHeader>
+          <SheetHeader><SheetTitle>Edit Transaction</SheetTitle></SheetHeader>
           {editingTransaction && (
             <TransactionForm
               categories={categories}
