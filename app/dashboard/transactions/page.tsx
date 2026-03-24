@@ -23,6 +23,8 @@ export default async function TransactionsPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
+  const userId = session.user.id;
+
   const { month: monthStr, year: yearStr } = await searchParams;
   const now = new Date();
   const month = parseInt(monthStr ?? String(now.getMonth() + 1));
@@ -40,7 +42,7 @@ export default async function TransactionsPage({
       include: { category: true, bankAccount: true },
       orderBy: { date: "desc" },
     }),
-    prisma.category.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] }),
+    prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
     prisma.bankAccount.findMany({
       where: { userId: session.user.id },
       orderBy: { name: "asc" },

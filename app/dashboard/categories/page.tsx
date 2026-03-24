@@ -19,6 +19,7 @@ export default async function CategoriesPage() {
   if (!session) redirect("/sign-in");
 
   const categories = await prisma.category.findMany({
+    where: { userId: session.user.id },
     orderBy: [{ group: "asc" }, { name: "asc" }],
   });
 

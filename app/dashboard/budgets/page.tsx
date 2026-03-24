@@ -23,6 +23,8 @@ export default async function BudgetsPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
+  const userId = session.user.id;
+
   const { month: monthStr, year: yearStr } = await searchParams;
   const now = new Date();
   const month = parseInt(monthStr ?? String(now.getMonth() + 1));
@@ -32,7 +34,7 @@ export default async function BudgetsPage({
   const end = new Date(year, month, 0, 23, 59, 59);
 
   const [categories, spendByCategory, inflowTotal] = await Promise.all([
-    prisma.category.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] }),
+    prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
     prisma.transaction.groupBy({
       by: ["categoryId"],
       where: {
