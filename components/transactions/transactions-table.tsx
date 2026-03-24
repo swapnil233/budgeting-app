@@ -9,7 +9,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatCurrency, dollarsToCents, cn } from "@/lib/utils";
-import { IconCheck, IconEdit, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconEdit,
+  IconReceipt,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -62,7 +68,15 @@ type GridContext = {
   onDelete: (id: string) => void;
 };
 
-const GROUP_ORDER = ["INCOME", "FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
+const GROUP_ORDER = [
+  "INCOME",
+  "FIXED",
+  "SUBSCRIPTIONS",
+  "FOOD",
+  "LIFESTYLE",
+  "PEOPLE_AND_PETS",
+  "OTHER",
+];
 const GROUP_LABELS: Record<string, string> = {
   INCOME: "Income",
   FIXED: "Fixed",
@@ -74,7 +88,8 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 // Shared compact input styles
-const inp = "h-7 rounded border-0 border-b border-border/60 bg-transparent px-1.5 text-sm outline-none focus:border-primary focus:bg-muted/40 transition-colors placeholder:text-muted-foreground/40 w-full";
+const inp =
+  "h-7 rounded border-0 border-b border-border/60 bg-transparent px-1.5 text-sm outline-none focus:border-primary focus:bg-muted/40 transition-colors placeholder:text-muted-foreground/40 w-full";
 const sel = `${inp} cursor-pointer`;
 
 // ── Pinned add-row renderer ───────────────────────────────────────────────────
@@ -112,7 +127,12 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
   }
 
   async function save() {
-    if (!row.merchant.trim() || !row.amount || !row.categoryId || !row.bankAccountId) {
+    if (
+      !row.merchant.trim() ||
+      !row.amount ||
+      !row.categoryId ||
+      !row.bankAccountId
+    ) {
       setError("Fill in merchant, amount, category & account.");
       return;
     }
@@ -144,7 +164,10 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      save();
+    }
     if (e.key === "Escape") reset();
   }
 
@@ -204,10 +227,12 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
           byGroup[g]?.length ? (
             <optgroup key={g} label={GROUP_LABELS[g]}>
               {byGroup[g].map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </optgroup>
-          ) : null
+          ) : null,
         )}
       </select>
       {/* Account */}
@@ -217,7 +242,9 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
         onChange={(e) => set("bankAccountId", e.target.value)}
       >
         {bankAccounts.map((a) => (
-          <option key={a.id} value={a.id}>{a.name}</option>
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
         ))}
       </select>
       {/* Notes */}
@@ -230,15 +257,26 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
       />
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-0.5">
-        {error && <span className="text-xs text-destructive mr-1">{error}</span>}
-        <Button size="icon" variant="ghost"
+        {error && (
+          <span className="text-xs text-destructive mr-1">{error}</span>
+        )}
+        <Button
+          size="icon"
+          variant="ghost"
           className="h-7 w-7 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
-          onClick={save} disabled={saving} title="Save (Enter)">
+          onClick={save}
+          disabled={saving}
+          title="Save (Enter)"
+        >
           <IconCheck className="size-4" />
         </Button>
-        <Button size="icon" variant="ghost"
+        <Button
+          size="icon"
+          variant="ghost"
           className="h-7 w-7 text-muted-foreground"
-          onClick={reset} title="Clear (Esc)">
+          onClick={reset}
+          title="Clear (Esc)"
+        >
           <IconX className="size-4" />
         </Button>
       </div>
@@ -250,12 +288,14 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
 
 function TypeBadge({ value }: ICellRendererParams) {
   return (
-    <span className={cn(
-      "rounded px-1.5 py-0.5 text-xs font-medium",
-      value === "INCOME"
-        ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
-        : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
-    )}>
+    <span
+      className={cn(
+        "rounded px-1.5 py-0.5 text-xs font-medium",
+        value === "INCOME"
+          ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
+          : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+      )}
+    >
       {value === "INCOME" ? "Income" : "Expense"}
     </span>
   );
@@ -264,13 +304,16 @@ function TypeBadge({ value }: ICellRendererParams) {
 function AmountCell({ data }: ICellRendererParams<Transaction>) {
   if (!data) return null;
   return (
-    <span className={cn(
-      "font-medium tabular-nums",
-      data.type === "INCOME"
-        ? "text-green-600 dark:text-green-400"
-        : "text-red-600 dark:text-red-400",
-    )}>
-      {data.type === "INCOME" ? "+" : "−"}{formatCurrency(data.amount)}
+    <span
+      className={cn(
+        "font-medium tabular-nums",
+        data.type === "INCOME"
+          ? "text-green-600 dark:text-green-400"
+          : "text-red-600 dark:text-red-400",
+      )}
+    >
+      {data.type === "INCOME" ? "+" : "−"}
+      {formatCurrency(data.amount)}
     </span>
   );
 }
@@ -297,99 +340,126 @@ interface TransactionsTableProps {
   bankAccounts: BankAccount[];
 }
 
-export function TransactionsTable({ transactions, categories, bankAccounts }: TransactionsTableProps) {
+export function TransactionsTable({
+  transactions,
+  categories,
+  bankAccounts,
+}: TransactionsTableProps) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
   const [quickFilter, setQuickFilter] = useState("");
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (!confirm("Delete this transaction?")) return;
-    await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-    router.refresh();
-  }, [router]);
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete this transaction?")) return;
+      await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+      router.refresh();
+    },
+    [router],
+  );
 
-  const context: GridContext = useMemo(() => ({
-    categories,
-    bankAccounts,
-    onSaved: () => router.refresh(),
-    onEdit: setEditingTransaction,
-    onDelete: handleDelete,
-  }), [categories, bankAccounts, router, handleDelete]);
+  const context: GridContext = useMemo(
+    () => ({
+      categories,
+      bankAccounts,
+      onSaved: () => router.refresh(),
+      onEdit: setEditingTransaction,
+      onDelete: handleDelete,
+    }),
+    [categories, bankAccounts, router, handleDelete],
+  );
 
-  const ActionCell = useCallback(({ data }: ICellRendererParams<Transaction>) => {
-    if (!data) return null;
-    return (
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-7 w-7"
-          onClick={() => setEditingTransaction(data)}>
-          <IconEdit className="size-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon"
-          className="h-7 w-7 text-destructive hover:text-destructive"
-          onClick={() => handleDelete(data.id)}>
-          <IconTrash className="size-3.5" />
-        </Button>
-      </div>
-    );
-  }, [handleDelete]);
+  const ActionCell = useCallback(
+    ({ data }: ICellRendererParams<Transaction>) => {
+      if (!data) return null;
+      return (
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setEditingTransaction(data)}
+          >
+            <IconEdit className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => handleDelete(data.id)}
+          >
+            <IconTrash className="size-3.5" />
+          </Button>
+        </div>
+      );
+    },
+    [handleDelete],
+  );
 
-  const colDefs: ColDef<Transaction>[] = useMemo(() => [
-    {
-      field: "date",
-      headerName: "Date",
-      width: 110,
-      sort: "desc",
-      valueFormatter: ({ value }) =>
-        new Date(value).toLocaleDateString("en-CA", { month: "short", day: "numeric" }),
-    },
-    {
-      field: "type",
-      headerName: "Type",
-      width: 105,
-      cellRenderer: TypeBadge,
-    },
-    {
-      field: "merchant",
-      headerName: "Merchant",
-      flex: 2,
-      minWidth: 140,
-      cellRenderer: MerchantCell,
-    },
-    {
-      field: "amount",
-      headerName: "Amount",
-      width: 120,
-      headerClass: "ag-right-aligned-header",
-      cellStyle: { display: "flex", justifyContent: "flex-end" },
-      cellRenderer: AmountCell,
-    },
-    {
-      headerName: "Category",
-      flex: 1,
-      minWidth: 120,
-      valueGetter: ({ data }) => data?.category?.name ?? "",
-    },
-    {
-      headerName: "Account",
-      width: 130,
-      valueGetter: ({ data }) => data?.bankAccount?.name ?? "",
-    },
-    {
-      field: "notes",
-      headerName: "Notes",
-      flex: 1,
-      minWidth: 80,
-      valueFormatter: ({ value }) => value ?? "—",
-    },
-    {
-      headerName: "",
-      width: 84,
-      sortable: false,
-      resizable: false,
-      cellRenderer: ActionCell,
-    },
-  ], [ActionCell]);
+  const colDefs: ColDef<Transaction>[] = useMemo(
+    () => [
+      {
+        field: "date",
+        headerName: "Date",
+        width: 110,
+        sort: "desc",
+        valueFormatter: ({ value }) =>
+          new Date(value).toLocaleDateString("en-CA", {
+            month: "short",
+            day: "numeric",
+          }),
+      },
+      {
+        field: "type",
+        headerName: "Type",
+        width: 105,
+        cellRenderer: TypeBadge,
+      },
+      {
+        field: "merchant",
+        headerName: "Merchant",
+        flex: 2,
+        minWidth: 140,
+        cellRenderer: MerchantCell,
+      },
+      {
+        field: "amount",
+        headerName: "Amount",
+        width: 120,
+        headerClass: "ag-right-aligned-header",
+        cellStyle: { display: "flex", justifyContent: "flex-end" },
+        cellRenderer: AmountCell,
+      },
+      {
+        headerName: "Category",
+        flex: 1,
+        minWidth: 120,
+        valueGetter: ({ data }) => data?.category?.name ?? "",
+      },
+      {
+        headerName: "Account",
+        width: 130,
+        valueGetter: ({ data }) => data?.bankAccount?.name ?? "",
+      },
+      {
+        field: "notes",
+        headerName: "Notes",
+        flex: 1,
+        minWidth: 80,
+        valueFormatter: ({ value }) => value ?? "—",
+      },
+      {
+        headerName: "",
+        width: 84,
+        sortable: false,
+        resizable: false,
+        cellRenderer: ActionCell,
+      },
+    ],
+    [ActionCell],
+  );
 
   const theme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
@@ -405,7 +475,8 @@ export function TransactionsTable({ transactions, categories, bankAccounts }: Tr
         />
         {transactions.length > 0 && (
           <span className="ml-auto text-xs text-muted-foreground">
-            {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+            {transactions.length} transaction
+            {transactions.length !== 1 ? "s" : ""}
           </span>
         )}
       </div>
@@ -424,9 +495,17 @@ export function TransactionsTable({ transactions, categories, bankAccounts }: Tr
           fullWidthCellRenderer={AddRowCellRenderer}
           getRowHeight={(params) => (params.node.rowPinned === "top" ? 48 : 40)}
           noRowsOverlayComponent={() => (
-            <span className="text-sm text-muted-foreground">
-              No transactions this month — add one above.
-            </span>
+            <div className="flex flex-col items-center gap-3 pt-16 pb-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <IconReceipt className="size-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">No transactions yet</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Use the row above to log your first transaction.
+                </p>
+              </div>
+            </div>
           )}
           suppressCellFocus
           suppressMovableColumns
@@ -434,9 +513,14 @@ export function TransactionsTable({ transactions, categories, bankAccounts }: Tr
         />
       </div>
 
-      <Sheet open={!!editingTransaction} onOpenChange={(open) => !open && setEditingTransaction(null)}>
+      <Sheet
+        open={!!editingTransaction}
+        onOpenChange={(open) => !open && setEditingTransaction(null)}
+      >
         <SheetContent className="overflow-y-auto">
-          <SheetHeader><SheetTitle>Edit Transaction</SheetTitle></SheetHeader>
+          <SheetHeader>
+            <SheetTitle>Edit Transaction</SheetTitle>
+          </SheetHeader>
           {editingTransaction && (
             <TransactionForm
               categories={categories}
