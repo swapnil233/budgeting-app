@@ -23,6 +23,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tabler/icons-react": "^3.36.1",
     "@tanstack/react-table": "^8.21.3",
+    "ag-grid-community": "^35.1.0",
+    "ag-grid-react": "^35.1.0",
     "better-auth": "^1.4.18",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
