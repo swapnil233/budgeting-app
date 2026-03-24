@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { dollarsToCents, formatCurrency } from "@/lib/utils";
+import { Fragment } from "react";
 import { IconCheck, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -13,8 +14,9 @@ type Category = {
   budgetAmount: number;
 };
 
-const GROUP_ORDER = ["FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
+const GROUP_ORDER = ["INCOME", "FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
 const GROUP_LABELS: Record<string, string> = {
+  INCOME: "Income",
   FIXED: "Fixed",
   SUBSCRIPTIONS: "Subscriptions",
   FOOD: "Food",
@@ -258,8 +260,8 @@ export function CategoriesTable({ categories }: { categories: Category[] }) {
               const rows = byGroup[group];
               if (!rows || rows.length === 0) return null;
               return (
-                <>
-                  <tr key={`${group}-header`} className="border-t bg-muted/30">
+                <Fragment key={group}>
+                  <tr className="border-t bg-muted/30">
                     <td colSpan={4} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {GROUP_LABELS[group]}
                     </td>
@@ -281,7 +283,7 @@ export function CategoriesTable({ categories }: { categories: Category[] }) {
                       </td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               );
             })
           )}
