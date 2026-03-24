@@ -9,9 +9,9 @@ import {
   IconHelp,
   IconInnerShadowTop,
   IconListDetails,
-  IconReport,
   IconSearch,
   IconSettings,
+  IconTag,
 } from "@tabler/icons-react";
 
 import { NavDocuments } from "./nav-documents";
@@ -72,6 +72,11 @@ const data = {
       name: "Accounts",
       url: "/dashboard/accounts",
       icon: IconBuildingBank,
+    },
+    {
+      name: "Categories",
+      url: "/dashboard/categories",
+      icon: IconTag,
     },
     {
       name: "Settings",
