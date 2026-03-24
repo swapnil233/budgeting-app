@@ -1,12 +1,12 @@
-import { SummaryCards } from "@/components/dashboard/summary-cards";
-import { SpendingPieChart } from "@/components/dashboard/spending-pie-chart";
-import { BudgetBarChart } from "@/components/dashboard/budget-bar-chart";
+import { BudgetTable } from "@/components/budgets/budget-table";
 import { MonthSelector } from "@/components/shared/month-selector";
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -15,7 +15,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-export default async function DashboardPage({
+export default async function BudgetsPage({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
@@ -63,20 +63,22 @@ export default async function DashboardPage({
       cat.budgetAmount > 0 ? Math.round((spent / cat.budgetAmount) * 100) : 0;
     const status: "OK" | "CLOSE" | "OVER" =
       percentage > 100 ? "OVER" : percentage >= 80 ? "CLOSE" : "OK";
-    return { categoryId: cat.id, categoryName: cat.name, group: cat.group, budgetAmount: cat.budgetAmount, spent, left, percentage, status };
+
+    return {
+      categoryId: cat.id,
+      categoryName: cat.name,
+      group: cat.group,
+      budgetAmount: cat.budgetAmount,
+      spent,
+      left,
+      percentage,
+      status,
+    };
   });
 
   const totalInflow = inflowTotal._sum.amount ?? 0;
   const totalExpenses = rows.reduce((sum, r) => sum + r.spent, 0);
   const netPosition = totalInflow - totalExpenses;
-  const categoriesOverBudget = rows.filter((r) => r.budgetAmount > 0 && r.status === "OVER").length;
-
-  // Aggregate spend by group for pie chart
-  const spendByGroup = rows.reduce<Record<string, number>>((acc, row) => {
-    acc[row.group] = (acc[row.group] ?? 0) + row.spent;
-    return acc;
-  }, {});
-  const pieData = Object.entries(spendByGroup).map(([group, spent]) => ({ group, spent }));
 
   return (
     <>
@@ -88,8 +90,12 @@ export default async function DashboardPage({
         />
         <Breadcrumb>
           <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
             <BreadcrumbItem>
-              <BreadcrumbPage>Dashboard</BreadcrumbPage>
+              <BreadcrumbPage>Budgets</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -97,17 +103,13 @@ export default async function DashboardPage({
           <MonthSelector month={month} year={year} />
         </div>
       </header>
-      <div className="flex flex-1 flex-col gap-6 p-4">
-        <SummaryCards
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        <BudgetTable
+          rows={rows}
           totalInflow={totalInflow}
           totalExpenses={totalExpenses}
           netPosition={netPosition}
-          categoriesOverBudget={categoriesOverBudget}
         />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <SpendingPieChart data={pieData} />
-          <BudgetBarChart rows={rows} />
-        </div>
       </div>
     </>
   );

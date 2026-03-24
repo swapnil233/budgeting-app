@@ -105,13 +105,26 @@ model BankAccount {
   transactions Transaction[]
 }
 
+enum CATEGORY_GROUP {
+  FIXED
+  SUBSCRIPTIONS
+  FOOD
+  LIFESTYLE
+  PEOPLE_AND_PETS
+  OTHER
+}
+
 model Category {
-  id           String        @id @default(uuid())
+  id           String         @id @default(uuid())
   name         String
   colour       String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  group        CATEGORY_GROUP
+  budgetAmount Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   transactions Transaction[]
+
+  @@unique([name])
 }
 
 enum TRANSACTION_TYPE {
