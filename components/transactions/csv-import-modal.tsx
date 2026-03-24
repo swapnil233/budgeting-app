@@ -52,11 +52,33 @@ function sanitize(s: string): string {
 
 function parseDate(s: string): string {
   const t = s.trim();
+  const currentYear = new Date().getFullYear();
+
+  // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+
+  // MM/DD/YYYY
   const mdy = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mdy) return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
+
+  // "Mar 1", "March 15", "Jan 01" — month name + day, no year → use current year
+  const monthDay = t.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s*(\d{4})?$/);
+  if (monthDay) {
+    const year = monthDay[3] ? parseInt(monthDay[3]) : currentYear;
+    const d = new Date(`${monthDay[1]} ${monthDay[2]}, ${year}`);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+
+  // Fallback: native parse, but clamp year-less results to current year
   const d = new Date(t);
-  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  if (!isNaN(d.getTime())) {
+    // If year looks wrong (e.g. 2001 from "Mar 1"), replace with current year
+    if (d.getFullYear() < 2000) {
+      d.setFullYear(currentYear);
+    }
+    return d.toISOString().slice(0, 10);
+  }
+
   return t;
 }
 
@@ -67,7 +89,7 @@ function parseAmount(s: string): number {
 
 function parseType(s: string): "INCOME" | "EXPENSE" {
   const v = s.trim().toLowerCase();
-  return ["in", "income", "credit", "cr", "+", "deposit", "1", "true"].includes(v)
+  return ["in", "inflow", "income", "credit", "cr", "+", "deposit", "1", "true"].includes(v)
     ? "INCOME"
     : "EXPENSE";
 }
@@ -140,8 +162,7 @@ export function CsvImportModal({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"upload" | "preview">("upload");
-  const [isImporting, setIsImporting] = useState(false);
+  const [step, setStep] = useState<"upload" | "preview" | "importing">("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -149,7 +170,6 @@ export function CsvImportModal({
 
   function reset() {
     setStep("upload");
-    setIsImporting(false);
     setRows([]);
     setParseError(null);
     setImportError(null);
@@ -230,7 +250,7 @@ export function CsvImportModal({
 
   async function handleImport() {
     if (rows.length === 0) return;
-    setIsImporting(true);
+    setStep("importing");
     setImportError(null);
 
     try {
@@ -251,22 +271,12 @@ export function CsvImportModal({
         }),
       });
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Import failed");
-      }
-
-      const { count } = await res.json();
-      if (count === 0) {
-        throw new Error("No transactions were created — check the server logs for details.");
-      }
-
+      if (!res.ok) throw new Error();
       setOpen(false);
       router.refresh();
-    } catch (e) {
-      setImportError(e instanceof Error ? e.message : "Import failed. Please try again.");
-    } finally {
-      setIsImporting(false);
+    } catch {
+      setImportError("Import failed. Please try again.");
+      setStep("preview");
     }
   }
 
@@ -283,14 +293,15 @@ export function CsvImportModal({
 
       <DialogContent
         className={cn(
-          "p-0 gap-0 overflow-hidden",
-          step === "preview" ? "max-w-[92vw] w-[1100px]" : "max-w-lg"
+          "p-0 gap-0 overflow-hidden transition-all duration-200",
+          step === "preview" || step === "importing" ? "w-[92vw] max-w-7xl" : "max-w-lg"
         )}
       >
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>
             {step === "upload" && "Import Transactions from CSV"}
             {step === "preview" && `Preview — ${rows.length} transaction${rows.length !== 1 ? "s" : ""}`}
+            {step === "importing" && "Importing…"}
           </DialogTitle>
         </DialogHeader>
 
@@ -482,34 +493,30 @@ export function CsvImportModal({
                   </span>
                 )}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex gap-2">
                 {importError && (
-                  <p className="text-xs text-destructive">{importError}</p>
+                  <p className="text-xs text-destructive self-center mr-2">{importError}</p>
                 )}
-                <Button variant="outline" size="sm" onClick={reset} disabled={isImporting}>
+                <Button variant="outline" size="sm" onClick={reset}>
                   Back
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={handleImport}
-                  disabled={rows.length === 0 || isImporting}
-                  className="min-w-[120px]"
-                >
-                  {isImporting ? (
-                    <span className="flex items-center gap-2">
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      Importing…
-                    </span>
-                  ) : (
-                    `Import ${rows.length} transaction${rows.length !== 1 ? "s" : ""}`
-                  )}
+                <Button size="sm" onClick={handleImport} disabled={rows.length === 0}>
+                  Import {rows.length} transaction{rows.length !== 1 ? "s" : ""}
                 </Button>
               </div>
             </div>
           </>
         )}
 
-
+        {/* ── Importing step ── */}
+        {step === "importing" && (
+          <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">
+              Importing {rows.length} transaction{rows.length !== 1 ? "s" : ""}…
+            </p>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
