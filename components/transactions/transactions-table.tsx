@@ -1,6 +1,7 @@
 "use client";
 
 import { TransactionForm } from "./transaction-form";
+import { CsvImportModal } from "./csv-import-modal";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -55,9 +56,9 @@ type Transaction = {
   review: boolean;
   date: string | Date;
   categoryId: string;
-  bankAccountId: string;
+  bankAccountId: string | null;
   category: Category;
-  bankAccount: BankAccount;
+  bankAccount: BankAccount | null;
 };
 
 type GridContext = {
@@ -105,7 +106,7 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
     merchant: "",
     amount: "",
     categoryId: categories[0]?.id ?? "",
-    bankAccountId: bankAccounts[0]?.id ?? "",
+    bankAccountId: "",
     notes: "",
   });
 
@@ -119,7 +120,7 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
       merchant: "",
       amount: "",
       categoryId: categories[0]?.id ?? "",
-      bankAccountId: bankAccounts[0]?.id ?? "",
+      bankAccountId: "",
       notes: "",
     });
     setError(null);
@@ -127,13 +128,8 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
   }
 
   async function save() {
-    if (
-      !row.merchant.trim() ||
-      !row.amount ||
-      !row.categoryId ||
-      !row.bankAccountId
-    ) {
-      setError("Fill in merchant, amount, category & account.");
+    if (!row.merchant.trim() || !row.amount || !row.categoryId) {
+      setError("Fill in merchant, amount & category.");
       return;
     }
     setSaving(true);
@@ -150,7 +146,7 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
           review: false,
           date: row.date,
           categoryId: row.categoryId,
-          bankAccountId: row.bankAccountId,
+          bankAccountId: row.bankAccountId || null,
         }),
       });
       if (!res.ok) throw new Error();
@@ -241,6 +237,7 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
         value={row.bankAccountId}
         onChange={(e) => set("bankAccountId", e.target.value)}
       >
+        <option value="">No account</option>
         {bankAccounts.map((a) => (
           <option key={a.id} value={a.id}>
             {a.name}
@@ -473,12 +470,15 @@ export function TransactionsTable({
           value={quickFilter}
           onChange={(e) => setQuickFilter(e.target.value)}
         />
-        {transactions.length > 0 && (
-          <span className="ml-auto text-xs text-muted-foreground">
-            {transactions.length} transaction
-            {transactions.length !== 1 ? "s" : ""}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {transactions.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {transactions.length} transaction
+              {transactions.length !== 1 ? "s" : ""}
+            </span>
+          )}
+          <CsvImportModal categories={categories} bankAccounts={bankAccounts} />
+        </div>
       </div>
 
       <div className="rounded-lg border overflow-hidden">

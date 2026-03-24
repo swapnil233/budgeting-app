@@ -23,7 +23,7 @@ export async function PUT(
       review: body.review ?? false,
       date: new Date(body.date),
       categoryId: body.categoryId,
-      bankAccountId: body.bankAccountId,
+      bankAccountId: body.bankAccountId ?? null,
     },
     include: { category: true, bankAccount: true },
   });

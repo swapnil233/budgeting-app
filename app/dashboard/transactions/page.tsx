@@ -36,7 +36,7 @@ export default async function TransactionsPage({
   const [transactions, categories, bankAccounts] = await Promise.all([
     prisma.transaction.findMany({
       where: {
-        bankAccount: { userId: session.user.id },
+        category: { userId: session.user.id },
         date: { gte: start, lte: end },
       },
       include: { category: true, bankAccount: true },

@@ -25,7 +25,7 @@ type Transaction = {
   review: boolean;
   date: string | Date;
   categoryId: string;
-  bankAccountId: string;
+  bankAccountId: string | null;
 };
 
 interface TransactionFormProps {
@@ -179,11 +179,12 @@ export function TransactionForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="bankAccountId">Bank Account</Label>
-        <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? ""} required>
+        <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? ""}>
           <SelectTrigger id="bankAccountId">
-            <SelectValue placeholder="Select account" />
+            <SelectValue placeholder="No account" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="">No account</SelectItem>
             {bankAccounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}

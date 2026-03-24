@@ -39,7 +39,7 @@ export default async function BudgetsPage({
       by: ["categoryId"],
       where: {
         type: "EXPENSE",
-        bankAccount: { userId: session.user.id },
+        category: { userId: session.user.id },
         date: { gte: start, lte: end },
       },
       _sum: { amount: true },
@@ -47,7 +47,7 @@ export default async function BudgetsPage({
     prisma.transaction.aggregate({
       where: {
         type: "INCOME",
-        bankAccount: { userId: session.user.id },
+        category: { userId: session.user.id },
         date: { gte: start, lte: end },
       },
       _sum: { amount: true },

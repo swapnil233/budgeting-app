@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const end = new Date(year, month, 0, 23, 59, 59);
 
   const transactions = await prisma.transaction.findMany({
-    where: { bankAccount: { userId: session.user.id }, date: { gte: start, lte: end } },
+    where: { category: { userId: session.user.id }, date: { gte: start, lte: end } },
     include: { category: true, bankAccount: true },
     orderBy: { date: "desc" },
   });

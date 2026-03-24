@@ -63,23 +63,23 @@ export default async function DashboardPage({
       prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
       prisma.transaction.groupBy({
         by: ["categoryId"],
-        where: { type: "EXPENSE", bankAccount: { userId }, date: { gte: start, lte: end } },
+        where: { type: "EXPENSE", category: { userId }, date: { gte: start, lte: end } },
         _sum: { amount: true },
       }),
       prisma.transaction.aggregate({
-        where: { type: "INCOME", bankAccount: { userId }, date: { gte: start, lte: end } },
+        where: { type: "INCOME", category: { userId }, date: { gte: start, lte: end } },
         _sum: { amount: true },
       }),
       prisma.transaction.findMany({
-        where: { bankAccount: { userId }, date: { gte: start, lte: end } },
+        where: { category: { userId }, date: { gte: start, lte: end } },
         select: { date: true, amount: true, type: true },
       }),
       prisma.transaction.findMany({
-        where: { bankAccount: { userId }, date: { gte: lastStart, lte: lastEnd } },
+        where: { category: { userId }, date: { gte: lastStart, lte: lastEnd } },
         select: { date: true, amount: true, type: true },
       }),
       prisma.transaction.findMany({
-        where: { bankAccount: { userId }, date: { gte: start, lte: end } },
+        where: { category: { userId }, date: { gte: start, lte: end } },
         include: { category: true },
         orderBy: { date: "desc" },
         take: 7,

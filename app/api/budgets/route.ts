@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       by: ["categoryId"],
       where: {
         type: "EXPENSE",
-        bankAccount: { userId: session.user.id },
+        category: { userId },
         date: { gte: start, lte: end },
       },
       _sum: { amount: true },
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     prisma.transaction.aggregate({
       where: {
         type: "INCOME",
-        bankAccount: { userId: session.user.id },
+        category: { userId },
         date: { gte: start, lte: end },
       },
       _sum: { amount: true },
