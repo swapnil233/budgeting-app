@@ -140,7 +140,8 @@ export function CsvImportModal({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"upload" | "preview" | "importing">("upload");
+  const [step, setStep] = useState<"upload" | "preview">("upload");
+  const [isImporting, setIsImporting] = useState(false);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -148,6 +149,7 @@ export function CsvImportModal({
 
   function reset() {
     setStep("upload");
+    setIsImporting(false);
     setRows([]);
     setParseError(null);
     setImportError(null);
@@ -228,7 +230,7 @@ export function CsvImportModal({
 
   async function handleImport() {
     if (rows.length === 0) return;
-    setStep("importing");
+    setIsImporting(true);
     setImportError(null);
 
     try {
@@ -249,12 +251,17 @@ export function CsvImportModal({
         }),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Import failed");
+      }
+
       setOpen(false);
       router.refresh();
-    } catch {
-      setImportError("Import failed. Please try again.");
-      setStep("preview");
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Import failed. Please try again.");
+    } finally {
+      setIsImporting(false);
     }
   }
 
@@ -271,15 +278,14 @@ export function CsvImportModal({
 
       <DialogContent
         className={cn(
-          "p-0 gap-0 overflow-hidden transition-all duration-200",
-          step === "preview" || step === "importing" ? "max-w-5xl" : "max-w-lg"
+          "p-0 gap-0 overflow-hidden",
+          step === "preview" ? "max-w-[92vw] w-[1100px]" : "max-w-lg"
         )}
       >
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>
             {step === "upload" && "Import Transactions from CSV"}
             {step === "preview" && `Preview — ${rows.length} transaction${rows.length !== 1 ? "s" : ""}`}
-            {step === "importing" && "Importing…"}
           </DialogTitle>
         </DialogHeader>
 
@@ -471,30 +477,34 @@ export function CsvImportModal({
                   </span>
                 )}
               </p>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 {importError && (
-                  <p className="text-xs text-destructive self-center mr-2">{importError}</p>
+                  <p className="text-xs text-destructive">{importError}</p>
                 )}
-                <Button variant="outline" size="sm" onClick={reset}>
+                <Button variant="outline" size="sm" onClick={reset} disabled={isImporting}>
                   Back
                 </Button>
-                <Button size="sm" onClick={handleImport} disabled={rows.length === 0}>
-                  Import {rows.length} transaction{rows.length !== 1 ? "s" : ""}
+                <Button
+                  size="sm"
+                  onClick={handleImport}
+                  disabled={rows.length === 0 || isImporting}
+                  className="min-w-[120px]"
+                >
+                  {isImporting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      Importing…
+                    </span>
+                  ) : (
+                    `Import ${rows.length} transaction${rows.length !== 1 ? "s" : ""}`
+                  )}
                 </Button>
               </div>
             </div>
           </>
         )}
 
-        {/* ── Importing step ── */}
-        {step === "importing" && (
-          <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm text-muted-foreground">
-              Importing {rows.length} transaction{rows.length !== 1 ? "s" : ""}…
-            </p>
-          </div>
-        )}
+
       </DialogContent>
     </Dialog>
   );
