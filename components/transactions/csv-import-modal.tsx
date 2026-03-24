@@ -256,6 +256,11 @@ export function CsvImportModal({
         throw new Error(body.error ?? "Import failed");
       }
 
+      const { count } = await res.json();
+      if (count === 0) {
+        throw new Error("No transactions were created — check the server logs for details.");
+      }
+
       setOpen(false);
       router.refresh();
     } catch (e) {

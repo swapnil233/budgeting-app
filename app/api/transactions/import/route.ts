@@ -27,7 +27,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No rows provided" }, { status: 400 });
     }
 
-    // Upsert any new categories first
+    console.log("[import] rows received:", rows.length);
+    console.log("[import] sample row[0]:", JSON.stringify(rows[0]));
+
+    // Collect unique category names that need to be created
     const newCatNames = [
       ...new Set(
         rows
@@ -36,7 +39,9 @@ export async function POST(req: NextRequest) {
           .filter(Boolean)
       ),
     ];
+    console.log("[import] new category names:", newCatNames);
 
+    // Upsert new categories (group defaults to OTHER)
     const newCatMap: Record<string, string> = {};
     for (const name of newCatNames) {
       const cat = await prisma.category.upsert({
@@ -45,14 +50,19 @@ export async function POST(req: NextRequest) {
         create: { name, group: "OTHER", userId },
       });
       newCatMap[name.toLowerCase()] = cat.id;
+      console.log("[import] upserted category:", name, "→", cat.id);
     }
 
-    // Create each transaction individually (same path as POST /api/transactions)
+    // Create each transaction individually
     let count = 0;
     for (const r of rows) {
       const categoryId =
         r.categoryId ?? newCatMap[r.categoryName.trim().toLowerCase()];
-      if (!categoryId) continue;
+
+      if (!categoryId) {
+        console.warn("[import] skipping row — no categoryId resolved:", r.categoryName, r.categoryId);
+        continue;
+      }
 
       await prisma.transaction.create({
         data: {
@@ -69,9 +79,13 @@ export async function POST(req: NextRequest) {
       count++;
     }
 
+    console.log("[import] done. created:", count, "of", rows.length);
     return NextResponse.json({ count });
   } catch (error) {
     console.error("[/api/transactions/import]", error);
-    return NextResponse.json({ error: "Import failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Import failed" },
+      { status: 500 }
+    );
   }
 }
