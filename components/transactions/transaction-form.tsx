@@ -65,7 +65,7 @@ export function TransactionForm({
       review: data.get("review") === "on",
       date: data.get("date") as string,
       categoryId: data.get("categoryId") as string,
-      bankAccountId: data.get("bankAccountId") as string,
+      bankAccountId: (data.get("bankAccountId") as string) === "none" ? null : data.get("bankAccountId") as string,
     };
 
     try {
@@ -179,12 +179,12 @@ export function TransactionForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="bankAccountId">Bank Account</Label>
-        <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? ""}>
+        <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? "none"}>
           <SelectTrigger id="bankAccountId">
             <SelectValue placeholder="No account" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">No account</SelectItem>
+            <SelectItem value="none">No account</SelectItem>
             {bankAccounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}
