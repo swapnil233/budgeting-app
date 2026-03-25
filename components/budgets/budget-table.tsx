@@ -52,10 +52,17 @@ interface BudgetTableProps {
 export function BudgetTable({ rows: initialRows, totalInflow, totalExpenses, netPosition }: BudgetTableProps) {
   const [rows, setRows] = useState(initialRows);
   const [editing, setEditing] = useState<{ categoryId: string; value: string } | null>(null);
+  const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter((r) => r.categoryName.toLowerCase().includes(q));
+  }, [rows, search]);
+
   const rowsByGroup = GROUP_ORDER.reduce<Record<string, BudgetRow[]>>((acc, group) => {
-    acc[group] = rows.filter((r) => r.group === group);
+    acc[group] = filteredRows.filter((r) => r.group === group);
     return acc;
   }, {});
 
@@ -88,7 +95,15 @@ export function BudgetTable({ rows: initialRows, totalInflow, totalExpenses, net
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <input
+        type="search"
+        placeholder="Search categories…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full max-w-xs rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+      />
+      <div className="flex flex-col gap-6">
       {GROUP_ORDER.map((group) => {
         const groupRows = rowsByGroup[group];
         if (!groupRows || groupRows.length === 0) return null;
@@ -186,7 +201,7 @@ export function BudgetTable({ rows: initialRows, totalInflow, totalExpenses, net
       })}
 
       {/* Summary */}
-      <div className="rounded-lg border overflow-hidden">
+      {!search.trim() && <div className="rounded-lg border overflow-hidden">
         <div className="bg-muted/50 px-4 py-2 border-b">
           <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
             Summary
@@ -217,6 +232,7 @@ export function BudgetTable({ rows: initialRows, totalInflow, totalExpenses, net
             </span>
           </div>
         </div>
+      </div>}
       </div>
     </div>
   );
