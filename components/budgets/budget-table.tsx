@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useRef, useMemo } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { dollarsToCents } from "@/lib/utils";
 
 type BudgetRow = {
   categoryId: string;
@@ -47,11 +49,43 @@ interface BudgetTableProps {
   netPosition: number;
 }
 
-export function BudgetTable({ rows, totalInflow, totalExpenses, netPosition }: BudgetTableProps) {
+export function BudgetTable({ rows: initialRows, totalInflow, totalExpenses, netPosition }: BudgetTableProps) {
+  const [rows, setRows] = useState(initialRows);
+  const [editing, setEditing] = useState<{ categoryId: string; value: string } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const rowsByGroup = GROUP_ORDER.reduce<Record<string, BudgetRow[]>>((acc, group) => {
     acc[group] = rows.filter((r) => r.group === group);
     return acc;
   }, {});
+
+  function startEdit(categoryId: string, budgetAmount: number) {
+    setEditing({ categoryId, value: (budgetAmount / 100).toFixed(2) });
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  async function commitEdit(categoryId: string) {
+    if (!editing || editing.categoryId !== categoryId) return;
+    const cents = dollarsToCents(editing.value);
+    if (isNaN(cents) || cents < 0) { setEditing(null); return; }
+
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.categoryId !== categoryId) return r;
+        const left = cents - r.spent;
+        const percentage = cents > 0 ? Math.round((r.spent / cents) * 100) : 0;
+        const status: "OK" | "CLOSE" | "OVER" = percentage > 100 ? "OVER" : percentage >= 80 ? "CLOSE" : "OK";
+        return { ...r, budgetAmount: cents, left, percentage, status };
+      })
+    );
+    setEditing(null);
+
+    await fetch("/api/budgets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categoryId, budgetAmount: cents }),
+    });
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,8 +119,29 @@ export function BudgetTable({ rows, totalInflow, totalExpenses, netPosition }: B
                 {groupRows.map((row) => (
                   <tr key={row.categoryId} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2.5">{row.categoryName}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                      {row.budgetAmount > 0 ? formatCurrency(row.budgetAmount) : "—"}
+                    <td
+                      className="px-4 py-2.5 text-right tabular-nums text-muted-foreground cursor-pointer hover:bg-muted/40"
+                      onClick={() => startEdit(row.categoryId, row.budgetAmount)}
+                    >
+                      {editing?.categoryId === row.categoryId ? (
+                        <input
+                          ref={inputRef}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-24 text-right bg-background border rounded px-1 py-0.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                          value={editing.value}
+                          onChange={(e) => setEditing({ categoryId: row.categoryId, value: e.target.value })}
+                          onBlur={() => commitEdit(row.categoryId)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitEdit(row.categoryId);
+                            if (e.key === "Escape") setEditing(null);
+                          }}
+                          autoFocus
+                        />
+                      ) : (
+                        row.budgetAmount > 0 ? formatCurrency(row.budgetAmount) : "—"
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">
                       {row.spent > 0 ? formatCurrency(row.spent) : "—"}

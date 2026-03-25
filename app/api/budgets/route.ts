@@ -67,3 +67,20 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ rows, totalInflow, totalExpenses, netPosition });
 }
+
+export async function PATCH(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { categoryId, budgetAmount } = await req.json();
+  if (!categoryId || typeof budgetAmount !== "number" || budgetAmount < 0) {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  }
+
+  await prisma.category.update({
+    where: { id: categoryId, userId: session.user.id },
+    data: { budgetAmount },
+  });
+
+  return NextResponse.json({ ok: true });
+}
