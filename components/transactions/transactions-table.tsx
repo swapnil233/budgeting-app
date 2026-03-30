@@ -295,6 +295,31 @@ function MerchantCell({ data }: ICellRendererParams<Transaction>) {
   );
 }
 
+function ActionCellRenderer({ data, context }: ICellRendererParams<Transaction>) {
+  if (!data) return null;
+  const { onEdit, onDelete } = context as GridContext;
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={() => onEdit(data)}
+      >
+        <IconEdit className="size-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-destructive hover:text-destructive"
+        onClick={() => onDelete(data.id)}
+      >
+        <IconTrash className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 // ── Pagination helpers ───────────────────────────────────────────────────────
 
 function buildPageNumbers(current: number, total: number): (number | "...")[] {
@@ -485,44 +510,17 @@ export function TransactionsTable({
     [categories, bankAccounts, refetchCurrentPage, handleDelete],
   );
 
-  const ActionCell = useCallback(
-    ({ data }: ICellRendererParams<Transaction>) => {
-      if (!data) return null;
-      return (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setEditingTransaction(data)}
-          >
-            <IconEdit className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
-            onClick={() => handleDelete(data.id)}
-          >
-            <IconTrash className="size-3.5" />
-          </Button>
-        </div>
-      );
-    },
-    [handleDelete],
-  );
-
   const colDefs: ColDef<Transaction>[] = useMemo(
     () => [
       {
         field: "date",
         headerName: "Date",
         width: 110,
-        sort: "desc",
         valueFormatter: ({ value }) =>
           new Date(value).toLocaleDateString("en-CA", {
             month: "short",
             day: "numeric",
+            timeZone: "UTC",
           }),
       },
       {
@@ -569,10 +567,10 @@ export function TransactionsTable({
         width: 84,
         sortable: false,
         resizable: false,
-        cellRenderer: ActionCell,
+        cellRenderer: ActionCellRenderer,
       },
     ],
-    [ActionCell],
+    [],
   );
 
   const totalPages =
@@ -626,6 +624,9 @@ export function TransactionsTable({
           rowData={transactions}
           columnDefs={colDefs}
           context={context}
+          initialState={{
+            sort: { sortModel: [{ colId: "date", sort: "desc" }] },
+          }}
           domLayout="autoHeight"
           defaultColDef={{ sortable: true, resizable: true }}
           pinnedTopRowData={[{}]}

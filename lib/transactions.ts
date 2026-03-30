@@ -17,8 +17,8 @@ export async function fetchTransactions({
   pageSize,
   search,
 }: FetchParams) {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0, 23, 59, 59);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   const baseWhere = {
     category: { userId },
