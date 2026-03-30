@@ -665,6 +665,7 @@ export function TransactionsTable({
           suppressCellFocus
           suppressMovableColumns
           animateRows
+          onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
         />
       </div>
 
