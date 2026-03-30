@@ -1,11 +1,21 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { dollarsToCents, formatCurrency } from "@/lib/utils";
-import { Fragment } from "react";
-import { IconCheck, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  useAgGridTheme,
+  addRowInput,
+  addRowSelect,
+  GROUP_ORDER,
+  GROUP_LABELS,
+} from "@/lib/ag-grid";
+import { dollarsToCents, formatCurrency, cn } from "@/lib/utils";
+import { IconCheck, IconFolder, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import { type ColDef, type ICellRendererParams } from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Category = {
   id: string;
@@ -14,26 +24,22 @@ type Category = {
   budgetAmount: number;
 };
 
-const GROUP_ORDER = ["INCOME", "FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
-const GROUP_LABELS: Record<string, string> = {
-  INCOME: "Income",
-  FIXED: "Fixed",
-  SUBSCRIPTIONS: "Subscriptions",
-  FOOD: "Food",
-  LIFESTYLE: "Lifestyle",
-  PEOPLE_AND_PETS: "People & Pets",
-  OTHER: "Other",
+type GroupHeader = { __isGroupHeader: true; group: string };
+type RowItem = Category | GroupHeader;
+
+function isGroupHeader(row: RowItem): row is GroupHeader {
+  return "__isGroupHeader" in row && row.__isGroupHeader === true;
+}
+
+type CategoriesGridContext = {
+  onDelete: (id: string, name: string) => void;
+  onSaved: () => void;
 };
 
-const cellInput =
-  "w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring transition-colors placeholder:text-muted-foreground/50";
-const cellSelect =
-  "w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm outline-none focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring transition-colors cursor-pointer";
+// ── Pinned add-row renderer ───────────────────────────────────────────────────
 
-// ── Add row ──────────────────────────────────────────────────────────────────
-
-function AddRow() {
-  const router = useRouter();
+function AddRowCellRenderer({ context }: ICellRendererParams) {
+  const { onSaved } = context as CategoriesGridContext;
   const nameRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +52,7 @@ function AddRow() {
     setGroup("FIXED");
     setBudget("");
     setError(null);
+    nameRef.current?.focus();
   }
 
   async function save() {
@@ -68,8 +75,7 @@ function AddRow() {
       });
       if (!res.ok) throw new Error("Failed");
       reset();
-      nameRef.current?.focus();
-      router.refresh();
+      onSaved();
     } catch {
       setError("Failed to save.");
     } finally {
@@ -83,68 +89,82 @@ function AddRow() {
   }
 
   return (
-    <>
-      <tr className="border-b bg-muted/30 hover:bg-muted/40" onKeyDown={handleKeyDown}>
-        <td className="px-2 py-1.5">
-          <input
-            ref={nameRef}
-            type="text"
-            className={cellInput}
-            placeholder="Category name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </td>
-        <td className="px-2 py-1.5">
-          <select className={cellSelect} value={group} onChange={(e) => setGroup(e.target.value)}>
-            {GROUP_ORDER.map((g) => (
-              <option key={g} value={g}>{GROUP_LABELS[g]}</option>
-            ))}
-          </select>
-        </td>
-        <td className="px-2 py-1.5">
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className={`${cellInput} text-right`}
-            placeholder="No limit"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-          />
-        </td>
-        <td className="px-2 py-1.5">
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost"
-              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={save} disabled={saving} title="Save (Enter)">
-              <IconCheck className="size-4" />
-            </Button>
-            <Button size="icon" variant="ghost"
-              className="h-7 w-7 text-muted-foreground"
-              onClick={reset} title="Clear (Esc)">
-              <IconX className="size-4" />
-            </Button>
-          </div>
-        </td>
-      </tr>
-      {error && (
-        <tr className="bg-destructive/5">
-          <td colSpan={4} className="px-3 py-1 text-xs text-destructive">{error}</td>
-        </tr>
-      )}
-    </>
+    <div className="flex h-full w-full items-center gap-1.5 px-2" onKeyDown={handleKeyDown}>
+      <input
+        ref={nameRef}
+        type="text"
+        className={cn(addRowInput, "min-w-0 flex-[2]")}
+        placeholder="Category name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoFocus
+      />
+      <select
+        className={cn(addRowSelect, "flex-1 shrink-0")}
+        value={group}
+        onChange={(e) => setGroup(e.target.value)}
+      >
+        {GROUP_ORDER.map((g) => (
+          <option key={g} value={g}>{GROUP_LABELS[g]}</option>
+        ))}
+      </select>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        className={cn(addRowInput, "w-[110px] shrink-0 text-right")}
+        placeholder="No limit"
+        value={budget}
+        onChange={(e) => setBudget(e.target.value)}
+      />
+      <div className="flex shrink-0 items-center gap-0.5">
+        {error && <span className="text-xs text-destructive mr-1">{error}</span>}
+        <Button
+          size="icon" variant="ghost"
+          className="h-7 w-7 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
+          onClick={save} disabled={saving} title="Save (Enter)"
+        >
+          <IconCheck className="size-4" />
+        </Button>
+        <Button
+          size="icon" variant="ghost"
+          className="h-7 w-7 text-muted-foreground"
+          onClick={reset} title="Clear (Esc)"
+        >
+          <IconX className="size-4" />
+        </Button>
+      </div>
+    </div>
   );
 }
 
-// ── Budget cell — click to edit inline ───────────────────────────────────────
+// ── Group header renderer ─────────────────────────────────────────────────────
 
-function BudgetCell({ category }: { category: Category }) {
-  const router = useRouter();
+function GroupHeaderRenderer({ data }: ICellRendererParams) {
+  return (
+    <div className="flex h-full items-center px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30">
+      {GROUP_LABELS[data.group]}
+    </div>
+  );
+}
+
+// ── Full-width cell dispatcher ────────────────────────────────────────────────
+
+function FullWidthCellRenderer(params: ICellRendererParams) {
+  if (params.node.rowPinned === "top") return <AddRowCellRenderer {...params} />;
+  return <GroupHeaderRenderer {...params} />;
+}
+
+// ── Budget cell — click to edit inline ────────────────────────────────────────
+
+function BudgetCellRenderer({ data, context }: ICellRendererParams<RowItem>) {
+  if (!data || isGroupHeader(data)) return null;
+  const category = data as Category;
+  const { onSaved } = context as CategoriesGridContext;
+
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(
-    category.budgetAmount > 0 ? (category.budgetAmount / 100).toFixed(2) : ""
+    category.budgetAmount > 0 ? (category.budgetAmount / 100).toFixed(2) : "",
   );
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +181,7 @@ function BudgetCell({ category }: { category: Category }) {
           budgetAmount: value ? dollarsToCents(value) : 0,
         }),
       });
-      router.refresh();
+      onSaved();
     } finally {
       setSaving(false);
       setEditing(false);
@@ -199,99 +219,158 @@ function BudgetCell({ category }: { category: Category }) {
 
   return (
     <button
-      className="group flex items-center gap-1.5 text-sm tabular-nums hover:text-foreground transition-colors"
-      onClick={() => { setEditing(true); }}
+      className="group/budget flex items-center gap-1.5 text-sm tabular-nums hover:text-foreground transition-colors"
+      onClick={() => setEditing(true)}
       title="Click to edit"
     >
       <span className={category.budgetAmount > 0 ? "" : "text-muted-foreground/50"}>
         {category.budgetAmount > 0 ? formatCurrency(category.budgetAmount) : "No limit"}
       </span>
-      <IconPencil className="size-3 opacity-0 group-hover:opacity-40 transition-opacity" />
+      <IconPencil className="size-3 opacity-0 group-hover/budget:opacity-40 transition-opacity" />
     </button>
   );
 }
 
-// ── Main table ────────────────────────────────────────────────────────────────
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export function CategoriesTable({ categories }: { categories: Category[] }) {
   const router = useRouter();
+  const theme = useAgGridTheme();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? Transactions in this category will also be deleted.`)) return;
-    setDeletingId(id);
-    try {
-      await fetch(`/api/categories/${id}`, { method: "DELETE" });
-      router.refresh();
-    } finally {
-      setDeletingId(null);
-    }
-  }
+  const handleDelete = useCallback(
+    async (id: string, name: string) => {
+      if (!confirm(`Delete "${name}"? Transactions in this category will also be deleted.`)) return;
+      setDeletingId(id);
+      try {
+        await fetch(`/api/categories/${id}`, { method: "DELETE" });
+        router.refresh();
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [router],
+  );
 
-  const byGroup = GROUP_ORDER.reduce<Record<string, Category[]>>((acc, g) => {
-    acc[g] = categories.filter((c) => c.group === g);
-    return acc;
-  }, {});
+  const context: CategoriesGridContext = useMemo(
+    () => ({
+      onDelete: handleDelete,
+      onSaved: () => router.refresh(),
+    }),
+    [handleDelete, router],
+  );
+
+  const ActionCell = useCallback(
+    ({ data }: ICellRendererParams<RowItem>) => {
+      if (!data || isGroupHeader(data)) return null;
+      const cat = data as Category;
+      return (
+        <Button
+          variant="ghost" size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={() => handleDelete(cat.id, cat.name)}
+        >
+          <IconTrash className="size-3.5" />
+        </Button>
+      );
+    },
+    [handleDelete],
+  );
+
+  const colDefs: ColDef<RowItem>[] = useMemo(
+    () => [
+      {
+        field: "name" as keyof Category,
+        headerName: "Name",
+        flex: 2,
+        minWidth: 140,
+        cellRenderer: ({ data, value }: ICellRendererParams<RowItem>) => {
+          if (!data || isGroupHeader(data)) return null;
+          return <span className="font-medium">{value}</span>;
+        },
+      },
+      {
+        field: "group" as keyof Category,
+        headerName: "Group",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: ({ value }) => GROUP_LABELS[value] ?? value,
+      },
+      {
+        field: "budgetAmount" as keyof Category,
+        headerName: "Monthly Budget",
+        flex: 1,
+        minWidth: 130,
+        headerClass: "ag-right-aligned-header",
+        cellStyle: { display: "flex", justifyContent: "flex-end" },
+        cellRenderer: BudgetCellRenderer,
+      },
+      {
+        headerName: "",
+        width: 70,
+        sortable: false,
+        resizable: false,
+        cellRenderer: ActionCell,
+      },
+    ],
+    [ActionCell],
+  );
+
+  // Build row data with group header sentinels
+  const rowData: RowItem[] = useMemo(() => {
+    const result: RowItem[] = [];
+    for (const group of GROUP_ORDER) {
+      const groupCats = categories.filter((c) => c.group === group);
+      if (groupCats.length > 0) {
+        result.push({ __isGroupHeader: true, group });
+        result.push(...groupCats);
+      }
+    }
+    return result;
+  }, [categories]);
 
   const totalBudget = categories.reduce((s, c) => s + c.budgetAmount, 0);
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50 text-left">
-            <th className="px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider">Name</th>
-            <th className="px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider">Group</th>
-            <th className="px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider text-right">Monthly Budget</th>
-            <th className="px-3 py-2.5 w-20" />
-          </tr>
-        </thead>
-        <tbody>
-          <AddRow />
-
-          {categories.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                No categories yet. Add one above.
-              </td>
-            </tr>
-          ) : (
-            GROUP_ORDER.map((group) => {
-              const rows = byGroup[group];
-              if (!rows || rows.length === 0) return null;
-              return (
-                <Fragment key={group}>
-                  <tr className="border-t bg-muted/30">
-                    <td colSpan={4} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {GROUP_LABELS[group]}
-                    </td>
-                  </tr>
-                  {rows.map((cat) => (
-                    <tr key={cat.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-3 py-2.5 font-medium">{cat.name}</td>
-                      <td className="px-3 py-2.5 text-muted-foreground">{GROUP_LABELS[cat.group]}</td>
-                      <td className="px-3 py-2.5 text-right">
-                        <BudgetCell category={cat} />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Button variant="ghost" size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(cat.id, cat.name)}
-                          disabled={deletingId === cat.id}>
-                          <IconTrash className="size-3.5" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </Fragment>
-              );
-            })
+    <div className="flex flex-col">
+      <div className="rounded-lg border overflow-hidden">
+        <AgGridReact<RowItem>
+          theme={theme}
+          rowData={rowData}
+          columnDefs={colDefs}
+          context={context}
+          domLayout="autoHeight"
+          defaultColDef={{ sortable: false, resizable: true }}
+          pinnedTopRowData={[{}]}
+          isFullWidthRow={(params) =>
+            params.rowNode.rowPinned === "top" || (params.rowNode.data != null && isGroupHeader(params.rowNode.data))
+          }
+          fullWidthCellRenderer={FullWidthCellRenderer}
+          getRowHeight={(params) => {
+            if (params.node.rowPinned === "top") return 48;
+            if (params.data && isGroupHeader(params.data)) return 32;
+            return 40;
+          }}
+          noRowsOverlayComponent={() => (
+            <div className="flex flex-col items-center gap-3 pt-16 pb-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <IconFolder className="size-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">No categories yet</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Use the row above to add your first category.
+                </p>
+              </div>
+            </div>
           )}
-        </tbody>
-      </table>
-
+          suppressCellFocus
+          suppressMovableColumns
+          animateRows
+        />
+      </div>
       {categories.length > 0 && (
-        <div className="border-t px-3 py-2 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+        <div className="border-x border-b rounded-b-lg px-3 py-2 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
           <span>{categories.length} categor{categories.length !== 1 ? "ies" : "y"}</span>
           <span>
             Total budget:{" "}

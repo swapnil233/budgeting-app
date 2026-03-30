@@ -1,9 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { IconCheck, IconTrash, IconX } from "@tabler/icons-react";
+import { useAgGridTheme, addRowInput, addRowSelect } from "@/lib/ag-grid";
+import { cn } from "@/lib/utils";
+import { IconBuildingBank, IconCheck, IconTrash, IconX } from "@tabler/icons-react";
+import { type ColDef, type ICellRendererParams } from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 type BankAccount = {
   id: string;
@@ -31,13 +35,15 @@ const TYPES = [
 const PROVIDER_LABELS = Object.fromEntries(PROVIDERS.map((p) => [p.value, p.label]));
 const TYPE_LABELS = Object.fromEntries(TYPES.map((t) => [t.value, t.label]));
 
-const cellInput =
-  "w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring transition-colors placeholder:text-muted-foreground/50";
-const cellSelect =
-  "w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm outline-none focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring transition-colors cursor-pointer";
+type AccountGridContext = {
+  onDelete: (id: string) => void;
+  onSaved: () => void;
+};
 
-function AddRow() {
-  const router = useRouter();
+// ── Pinned add-row renderer ───────────────────────────────────────────────────
+
+function AddRowCellRenderer({ context }: ICellRendererParams) {
+  const { onSaved } = context as AccountGridContext;
   const nameRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +56,7 @@ function AddRow() {
     setProvider("TD_BANK");
     setType("CHECKING");
     setError(null);
+    nameRef.current?.focus();
   }
 
   async function save() {
@@ -68,8 +75,7 @@ function AddRow() {
       });
       if (!res.ok) throw new Error("Failed");
       reset();
-      nameRef.current?.focus();
-      router.refresh();
+      onSaved();
     } catch {
       setError("Failed to save account.");
     } finally {
@@ -83,118 +89,170 @@ function AddRow() {
   }
 
   return (
-    <>
-      <tr className="border-b bg-muted/30 hover:bg-muted/40" onKeyDown={handleKeyDown}>
-        <td className="px-2 py-1.5">
-          <input
-            ref={nameRef}
-            type="text"
-            className={cellInput}
-            placeholder="Account name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </td>
-        <td className="px-2 py-1.5">
-          <select className={cellSelect} value={provider} onChange={(e) => setProvider(e.target.value)}>
-            {PROVIDERS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-        </td>
-        <td className="px-2 py-1.5">
-          <select className={cellSelect} value={type} onChange={(e) => setType(e.target.value)}>
-            {TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-        </td>
-        <td className="px-2 py-1.5">
-          <div className="flex items-center gap-1">
-            <Button
-              size="icon" variant="ghost"
-              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={save} disabled={saving} title="Save (Enter)"
-            >
-              <IconCheck className="size-4" />
-            </Button>
-            <Button
-              size="icon" variant="ghost"
-              className="h-7 w-7 text-muted-foreground"
-              onClick={reset} title="Clear (Esc)"
-            >
-              <IconX className="size-4" />
-            </Button>
-          </div>
-        </td>
-      </tr>
-      {error && (
-        <tr className="bg-destructive/5">
-          <td colSpan={4} className="px-3 py-1 text-xs text-destructive">{error}</td>
-        </tr>
-      )}
-    </>
+    <div className="flex h-full w-full items-center gap-1.5 px-2" onKeyDown={handleKeyDown}>
+      <input
+        ref={nameRef}
+        type="text"
+        className={cn(addRowInput, "min-w-0 flex-[2]")}
+        placeholder="Account name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoFocus
+      />
+      <select
+        className={cn(addRowSelect, "flex-1 shrink-0")}
+        value={provider}
+        onChange={(e) => setProvider(e.target.value)}
+      >
+        {PROVIDERS.map((p) => (
+          <option key={p.value} value={p.value}>{p.label}</option>
+        ))}
+      </select>
+      <select
+        className={cn(addRowSelect, "flex-1 shrink-0")}
+        value={type}
+        onChange={(e) => setType(e.target.value)}
+      >
+        {TYPES.map((t) => (
+          <option key={t.value} value={t.value}>{t.label}</option>
+        ))}
+      </select>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {error && <span className="text-xs text-destructive mr-1">{error}</span>}
+        <Button
+          size="icon" variant="ghost"
+          className="h-7 w-7 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
+          onClick={save} disabled={saving} title="Save (Enter)"
+        >
+          <IconCheck className="size-4" />
+        </Button>
+        <Button
+          size="icon" variant="ghost"
+          className="h-7 w-7 text-muted-foreground"
+          onClick={reset} title="Clear (Esc)"
+        >
+          <IconX className="size-4" />
+        </Button>
+      </div>
+    </div>
   );
 }
 
+// ── Main export ───────────────────────────────────────────────────────────────
+
 export function AccountsTable({ accounts }: { accounts: BankAccount[] }) {
   const router = useRouter();
+  const theme = useAgGridTheme();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this account? Transactions linked to it will also be deleted.")) return;
-    setDeletingId(id);
-    try {
-      await fetch(`/api/bank-accounts/${id}`, { method: "DELETE" });
-      router.refresh();
-    } finally {
-      setDeletingId(null);
-    }
-  }
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete this account? Transactions linked to it will also be deleted.")) return;
+      setDeletingId(id);
+      try {
+        await fetch(`/api/bank-accounts/${id}`, { method: "DELETE" });
+        router.refresh();
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [router],
+  );
+
+  const context: AccountGridContext = useMemo(
+    () => ({
+      onDelete: handleDelete,
+      onSaved: () => router.refresh(),
+    }),
+    [handleDelete, router],
+  );
+
+  const ActionCell = useCallback(
+    ({ data }: ICellRendererParams<BankAccount>) => {
+      if (!data) return null;
+      return (
+        <Button
+          variant="ghost" size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={() => handleDelete(data.id)}
+        >
+          <IconTrash className="size-3.5" />
+        </Button>
+      );
+    },
+    [handleDelete],
+  );
+
+  const colDefs: ColDef<BankAccount>[] = useMemo(
+    () => [
+      {
+        field: "name",
+        headerName: "Name",
+        flex: 2,
+        minWidth: 140,
+        cellRenderer: ({ value }: ICellRendererParams) => (
+          <span className="font-medium">{value}</span>
+        ),
+      },
+      {
+        field: "provider",
+        headerName: "Provider",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: ({ value }) => PROVIDER_LABELS[value] ?? value,
+      },
+      {
+        field: "type",
+        headerName: "Type",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: ({ value }) => TYPE_LABELS[value] ?? value,
+      },
+      {
+        headerName: "",
+        width: 70,
+        sortable: false,
+        resizable: false,
+        cellRenderer: ActionCell,
+      },
+    ],
+    [ActionCell],
+  );
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50 text-left">
-            <th className="px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider">Name</th>
-            <th className="px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider">Provider</th>
-            <th className="px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider">Type</th>
-            <th className="px-3 py-2.5 w-20" />
-          </tr>
-        </thead>
-        <tbody>
-          <AddRow />
-          {accounts.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                No accounts yet. Add one above.
-              </td>
-            </tr>
-          ) : (
-            accounts.map((account) => (
-              <tr key={account.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                <td className="px-3 py-2.5 font-medium">{account.name}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{PROVIDER_LABELS[account.provider] ?? account.provider}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{TYPE_LABELS[account.type] ?? account.type}</td>
-                <td className="px-3 py-2.5">
-                  <Button
-                    variant="ghost" size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={() => handleDelete(account.id)}
-                    disabled={deletingId === account.id}
-                  >
-                    <IconTrash className="size-3.5" />
-                  </Button>
-                </td>
-              </tr>
-            ))
+    <div className="flex flex-col">
+      <div className="rounded-lg border overflow-hidden">
+        <AgGridReact<BankAccount>
+          theme={theme}
+          rowData={accounts}
+          columnDefs={colDefs}
+          context={context}
+          domLayout="autoHeight"
+          defaultColDef={{ sortable: true, resizable: true }}
+          pinnedTopRowData={[{}]}
+          isFullWidthRow={(params) => params.rowNode.rowPinned === "top"}
+          fullWidthCellRenderer={AddRowCellRenderer}
+          getRowHeight={(params) => (params.node.rowPinned === "top" ? 48 : 40)}
+          noRowsOverlayComponent={() => (
+            <div className="flex flex-col items-center gap-3 pt-16 pb-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <IconBuildingBank className="size-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">No accounts yet</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Use the row above to add your first account.
+                </p>
+              </div>
+            </div>
           )}
-        </tbody>
-      </table>
+          suppressCellFocus
+          suppressMovableColumns
+          animateRows
+        />
+      </div>
       {accounts.length > 0 && (
-        <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/20">
+        <div className="border-x border-b rounded-b-lg px-3 py-2 text-xs text-muted-foreground bg-muted/20">
           {accounts.length} account{accounts.length !== 1 ? "s" : ""}
         </div>
       )}

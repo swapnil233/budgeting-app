@@ -11,37 +11,23 @@ import {
 } from "@/components/ui/sheet";
 import { formatCurrency, dollarsToCents, cn } from "@/lib/utils";
 import {
+  useAgGridTheme,
+  addRowInput,
+  addRowSelect,
+  GROUP_ORDER,
+  GROUP_LABELS,
+} from "@/lib/ag-grid";
+import {
   IconCheck,
   IconEdit,
   IconReceipt,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import {
-  AllCommunityModule,
-  ModuleRegistry,
-  themeQuartz,
-  colorSchemeDark,
-  type ColDef,
-  type ICellRendererParams,
-} from "ag-grid-community";
+import { type ColDef, type ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useCallback, useMemo } from "react";
-
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-const lightTheme = themeQuartz.withParams({
-  fontFamily: "inherit",
-  fontSize: 13,
-  rowHeight: 40,
-  headerHeight: 36,
-  borderRadius: 0,
-  wrapperBorderRadius: 0,
-  cellHorizontalPaddingScale: 1.2,
-});
-const darkTheme = lightTheme.withPart(colorSchemeDark);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -69,29 +55,8 @@ type GridContext = {
   onDelete: (id: string) => void;
 };
 
-const GROUP_ORDER = [
-  "INCOME",
-  "FIXED",
-  "SUBSCRIPTIONS",
-  "FOOD",
-  "LIFESTYLE",
-  "PEOPLE_AND_PETS",
-  "OTHER",
-];
-const GROUP_LABELS: Record<string, string> = {
-  INCOME: "Income",
-  FIXED: "Fixed",
-  SUBSCRIPTIONS: "Subscriptions",
-  FOOD: "Food",
-  LIFESTYLE: "Lifestyle",
-  PEOPLE_AND_PETS: "People & Pets",
-  OTHER: "Other",
-};
-
-// Shared compact input styles
-const inp =
-  "h-7 rounded border-0 border-b border-border/60 bg-transparent px-1.5 text-sm outline-none focus:border-primary focus:bg-muted/40 transition-colors placeholder:text-muted-foreground/40 w-full";
-const sel = `${inp} cursor-pointer`;
+const inp = addRowInput;
+const sel = addRowSelect;
 
 // ── Pinned add-row renderer ───────────────────────────────────────────────────
 
@@ -201,7 +166,6 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
         placeholder="Merchant…"
         value={row.merchant}
         onChange={(e) => set("merchant", e.target.value)}
-        autoFocus
       />
       {/* Amount */}
       <input
@@ -343,7 +307,7 @@ export function TransactionsTable({
   bankAccounts,
 }: TransactionsTableProps) {
   const router = useRouter();
-  const { resolvedTheme } = useTheme();
+  const theme = useAgGridTheme();
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [quickFilter, setQuickFilter] = useState("");
@@ -457,8 +421,6 @@ export function TransactionsTable({
     ],
     [ActionCell],
   );
-
-  const theme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
   return (
     <>
