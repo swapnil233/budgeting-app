@@ -1,19 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@/lib/utils";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import type { ReportsData } from "./reports-data";
-import { GROUP_COLORS } from "./reports-data";
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
@@ -48,59 +36,35 @@ function FlowRow({
   amount,
   total,
   color,
-  align,
 }: {
   name: string;
   amount: number;
   total: number;
   color: string;
-  align: "left" | "right";
 }) {
   const pct = total > 0 ? (amount / total) * 100 : 0;
   return (
     <div className="flex items-center gap-2 text-sm">
-      {align === "right" && (
-        <>
-          <div className="flex-1 text-right">
-            <span className="font-medium">{name}</span>
-            <span className="ml-2 text-xs text-muted-foreground">
-              {formatCurrency(amount)}
-            </span>
-          </div>
-          <div className="w-36 h-5 rounded-sm overflow-hidden bg-muted/40">
-            <div
-              className="h-full rounded-sm"
-              style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
-            />
-          </div>
-        </>
-      )}
-      {align === "left" && (
-        <>
-          <div className="w-36 h-5 rounded-sm overflow-hidden bg-muted/40 flex justify-end">
-            <div
-              className="h-full rounded-sm"
-              style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
-            />
-          </div>
-          <div className="flex-1">
-            <span className="font-medium">{name}</span>
-            <span className="ml-2 text-xs text-muted-foreground">
-              {formatCurrency(amount)}
-            </span>
-          </div>
-        </>
-      )}
+      <div className="w-36 h-5 rounded-sm overflow-hidden bg-muted/40">
+        <div
+          className="h-full rounded-sm"
+          style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
+        />
+      </div>
+      <div className="flex-1">
+        <span className="font-medium">{name}</span>
+        <span className="ml-2 text-xs text-muted-foreground">
+          {formatCurrency(amount)}
+        </span>
+      </div>
     </div>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const currencyFormatter = (v: number) => formatCurrency(v);
-
 export function CashFlowTab({ data }: { data: ReportsData }) {
-  const { totalIncome, totalExpenses, net, savingsRate, monthlyData, incomeFlows, expenseFlows } = data;
+  const { totalIncome, totalExpenses, net, savingsRate, incomeFlows, expenseFlows } = data;
 
   return (
     <div className="space-y-6">
@@ -118,58 +82,6 @@ export function CashFlowTab({ data }: { data: ReportsData }) {
           value={`${savingsRate}%`}
           color={savingsRate >= 20 ? "#22c55e" : savingsRate >= 0 ? "#f59e0b" : "#ef4444"}
         />
-      </div>
-
-      {/* Monthly bar chart */}
-      <div className="rounded-lg border bg-card p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
-          Monthly Cash Flow
-        </p>
-        {monthlyData.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">No data yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={monthlyData} barGap={2} barCategoryGap="28%">
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-                axisLine={false}
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis
-                tickFormatter={(v) => `$${(v / 100).toFixed(0)}`}
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-                axisLine={false}
-                stroke="hsl(var(--muted-foreground))"
-                width={56}
-              />
-              <Tooltip
-                formatter={(v: unknown, name: unknown) => [
-                  formatCurrency(Number(v)),
-                  name === "income" ? "Income" : name === "expense" ? "Expenses" : "Net",
-                ]}
-                contentStyle={{
-                  fontSize: 12,
-                  borderRadius: 6,
-                  border: "1px solid hsl(var(--border))",
-                  background: "hsl(var(--card))",
-                }}
-              />
-              <Legend
-                formatter={(v) =>
-                  v === "income" ? "Income" : v === "expense" ? "Expenses" : "Net"
-                }
-                iconType="rect"
-                wrapperStyle={{ fontSize: 12 }}
-              />
-              <Bar dataKey="income" fill="#22c55e" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="expense" fill="#ef4444" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
       </div>
 
       {/* Flow breakdown */}
@@ -191,7 +103,6 @@ export function CashFlowTab({ data }: { data: ReportsData }) {
                   amount={src.amount}
                   total={totalIncome}
                   color="#22c55e"
-                  align="left"
                 />
               ))}
             </div>
@@ -208,7 +119,6 @@ export function CashFlowTab({ data }: { data: ReportsData }) {
                   amount={grp.amount}
                   total={totalExpenses}
                   color={grp.color}
-                  align="right"
                 />
               ))}
             </div>

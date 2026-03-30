@@ -3,16 +3,42 @@ import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ReportsTabs } from "@/components/reports/reports-tabs";
+import { MonthSelector } from "@/components/shared/month-selector";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
   const userId = session.user.id;
 
+  const { month: monthStr, year: yearStr } = await searchParams;
+  const now = new Date();
+  const month = parseInt(monthStr ?? String(now.getMonth() + 1));
+  const year = parseInt(yearStr ?? String(now.getFullYear()));
+
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
   const [transactions, categories] = await Promise.all([
     prisma.transaction.findMany({
-      where: { category: { userId } },
+      where: {
+        category: { userId },
+        date: { gte: start, lte: end },
+      },
       include: {
         category: { select: { id: true, name: true, group: true, budgetAmount: true } },
       },
@@ -24,7 +50,6 @@ export default async function ReportsPage() {
     }),
   ]);
 
-  // Serialize dates to strings for client boundary
   const txns = transactions.map((t) => ({
     ...t,
     date: t.date.toISOString(),
@@ -33,14 +58,28 @@ export default async function ReportsPage() {
   }));
 
   return (
-    <div className="flex-1 p-6 space-y-4 min-h-0">
-      <div>
-        <h1 className="text-xl font-semibold">Reports</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          All-time analysis · {transactions.length} transactions
-        </p>
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Reports</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <div className="ml-auto">
+          <MonthSelector month={month} year={year} />
+        </div>
+      </header>
+      <div className="flex flex-1 flex-col gap-4 p-6">
+        <ReportsTabs transactions={txns} categories={categories} />
       </div>
-      <ReportsTabs transactions={txns} categories={categories} />
-    </div>
+    </>
   );
 }

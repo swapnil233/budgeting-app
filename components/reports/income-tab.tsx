@@ -1,16 +1,6 @@
 "use client";
 
 import { formatCurrency } from "@/lib/utils";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Legend,
-} from "recharts";
 import type { ReportsData } from "./reports-data";
 import { INCOME_CAT_COLORS } from "./reports-data";
 
@@ -27,8 +17,6 @@ export function IncomeTab({ data }: { data: ReportsData }) {
   const {
     totalIncome,
     totalExpenses,
-    monthlyIncomeData,
-    incomeCatNames,
     incomeByCategory,
     stats,
   } = data;
@@ -46,91 +34,29 @@ export function IncomeTab({ data }: { data: ReportsData }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-        {/* Monthly stacked bar chart */}
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-            Income by Month
-          </p>
-          <p className="text-sm text-muted-foreground mb-4">by source</p>
-          {monthlyIncomeData.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No data.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyIncomeData} barCategoryGap="28%">
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  stroke="hsl(var(--muted-foreground))"
-                />
-                <YAxis
-                  tickFormatter={(v) => `$${(v / 100).toFixed(0)}`}
-                  tick={{ fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  stroke="hsl(var(--muted-foreground))"
-                  width={56}
-                />
-                <Tooltip
-                  formatter={(v: unknown, name: unknown) => [formatCurrency(Number(v)), String(name)]}
-                  contentStyle={{
-                    fontSize: 12,
-                    borderRadius: 6,
-                    border: "1px solid hsl(var(--border))",
-                    background: "hsl(var(--card))",
-                  }}
-                />
-                <Legend iconType="rect" wrapperStyle={{ fontSize: 12 }} />
-                {incomeCatNames.map((name, i) => (
-                  <Bar
-                    key={name}
-                    dataKey={name}
-                    stackId="income"
-                    fill={INCOME_CAT_COLORS[i % INCOME_CAT_COLORS.length]}
-                    radius={i === incomeCatNames.length - 1 ? [3, 3, 0, 0] : undefined}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Summary panel */}
-        <div className="rounded-lg border bg-card p-4 h-fit">
-          <p className="text-sm font-semibold mb-3">Summary</p>
-          <SummaryRow label="Total transactions" value={String(stats.totalTxns)} />
-          <SummaryRow label="Income transactions" value={String(stats.incomeTxns)} />
-          <SummaryRow
-            label="Largest income"
-            value={`+${formatCurrency(stats.largest)}`}
-            valueClass="text-green-600 dark:text-green-400"
-          />
-          <SummaryRow
-            label="Average income"
-            value={`+${formatCurrency(stats.avgIncome)}`}
-            valueClass="text-green-600 dark:text-green-400"
-          />
-          <SummaryRow
-            label="Total income"
-            value={`+${formatCurrency(totalIncome)}`}
-            valueClass="text-green-600 dark:text-green-400"
-          />
-          <SummaryRow
-            label="Total spending"
-            value={formatCurrency(totalExpenses)}
-          />
-          <SummaryRow
-            label="First transaction"
-            value={formatDate(stats.firstDate)}
-          />
-          <SummaryRow
-            label="Last transaction"
-            value={formatDate(stats.lastDate)}
-          />
-        </div>
+      {/* Summary panel */}
+      <div className="rounded-lg border bg-card p-4">
+        <p className="text-sm font-semibold mb-3">Summary</p>
+        <SummaryRow label="Total transactions" value={String(stats.totalTxns)} />
+        <SummaryRow label="Income transactions" value={String(stats.incomeTxns)} />
+        <SummaryRow
+          label="Largest income"
+          value={`+${formatCurrency(stats.largest)}`}
+          valueClass="text-green-600 dark:text-green-400"
+        />
+        <SummaryRow
+          label="Average income"
+          value={`+${formatCurrency(stats.avgIncome)}`}
+          valueClass="text-green-600 dark:text-green-400"
+        />
+        <SummaryRow
+          label="Total income"
+          value={`+${formatCurrency(totalIncome)}`}
+          valueClass="text-green-600 dark:text-green-400"
+        />
+        <SummaryRow label="Total spending" value={formatCurrency(totalExpenses)} />
+        <SummaryRow label="First transaction" value={formatDate(stats.firstDate)} />
+        <SummaryRow label="Last transaction" value={formatDate(stats.lastDate)} />
       </div>
 
       {/* Top income sources */}
