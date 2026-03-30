@@ -16,6 +16,7 @@ export const auth = betterAuth({
         window: 60,
         max: 10,
     },
+    trustedOrigins: ['https://letobudget.com', 'https://www.letobudget.com'],
     advanced: {
         useSecureCookies: process.env.NODE_ENV === 'production',
     },
