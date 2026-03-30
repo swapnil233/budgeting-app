@@ -21,6 +21,7 @@ import {
   IconCheck,
   IconChevronLeft,
   IconChevronRight,
+  IconDownload,
   IconEdit,
   IconReceipt,
   IconTrash,
@@ -609,6 +610,20 @@ export function TransactionsTable({
               {total} transaction{total !== 1 ? "s" : ""}
             </span>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => {
+              const a = document.createElement("a");
+              a.href = "/api/transactions/export";
+              a.download = "transactions.csv";
+              a.click();
+            }}
+          >
+            <IconDownload className="size-3.5" />
+            Export CSV
+          </Button>
           <CsvImportModal
             categories={categories}
             bankAccounts={bankAccounts}
