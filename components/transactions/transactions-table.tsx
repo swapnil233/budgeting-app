@@ -19,6 +19,8 @@ import {
 } from "@/lib/ag-grid";
 import {
   IconCheck,
+  IconChevronLeft,
+  IconChevronRight,
   IconEdit,
   IconReceipt,
   IconTrash,
@@ -26,8 +28,8 @@ import {
 } from "@tabler/icons-react";
 import { type ColDef, type ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useRouter } from "next/navigation";
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRef, useState, useCallback, useMemo, useEffect } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -293,43 +295,194 @@ function MerchantCell({ data }: ICellRendererParams<Transaction>) {
   );
 }
 
+// ── Pagination helpers ───────────────────────────────────────────────────────
+
+function buildPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (
+    let i = Math.max(2, current - 1);
+    i <= Math.min(total - 1, current + 1);
+    i++
+  ) {
+    pages.push(i);
+  }
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 interface TransactionsTableProps {
-  transactions: Transaction[];
+  initialData: { transactions: Transaction[]; total: number };
   categories: Category[];
   bankAccounts: BankAccount[];
+  month: number;
+  year: number;
+  initialSearch: string;
+  initialPage: number;
+  initialPageSize: number | "all";
 }
 
 export function TransactionsTable({
-  transactions,
+  initialData,
   categories,
   bankAccounts,
+  month,
+  year,
+  initialSearch,
+  initialPage,
+  initialPageSize,
 }: TransactionsTableProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const theme = useAgGridTheme();
+
+  const [transactions, setTransactions] = useState(initialData.transactions);
+  const [total, setTotal] = useState(initialData.total);
+  const [page, setPage] = useState(initialPage);
+  const [pageSize, setPageSize] = useState<number | "all">(initialPageSize);
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [loading, setLoading] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
-  const [quickFilter, setQuickFilter] = useState("");
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Cleanup debounce on unmount
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  // Sync state when server-side props change (e.g. month navigation)
+  useEffect(() => {
+    setTransactions(initialData.transactions);
+    setTotal(initialData.total);
+    setPage(initialPage);
+    setPageSize(initialPageSize);
+    setSearchInput(initialSearch);
+  }, [initialData, initialPage, initialPageSize, initialSearch]);
+
+  // ── URL sync ─────────────────────────────────────────────────────────────
+
+  const updateUrl = useCallback(
+    (updates: {
+      page?: number;
+      pageSize?: number | "all";
+      search?: string;
+    }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (updates.page !== undefined) {
+        if (updates.page <= 1) params.delete("page");
+        else params.set("page", String(updates.page));
+      }
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 20) params.delete("pageSize");
+        else params.set("pageSize", String(updates.pageSize));
+      }
+      if (updates.search !== undefined) {
+        if (updates.search) params.set("search", updates.search);
+        else params.delete("search");
+      }
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
+
+  // ── Data fetching ────────────────────────────────────────────────────────
+
+  const fetchData = useCallback(
+    async (params: {
+      page: number;
+      pageSize: number | "all";
+      search: string;
+    }) => {
+      setLoading(true);
+      try {
+        const sp = new URLSearchParams({
+          month: String(month),
+          year: String(year),
+          page: String(params.page),
+          pageSize: String(params.pageSize),
+        });
+        if (params.search) sp.set("search", params.search);
+        const res = await fetch(`/api/transactions?${sp.toString()}`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setTransactions(data.transactions);
+        setTotal(data.total);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [month, year],
+  );
+
+  const refetchCurrentPage = useCallback(() => {
+    fetchData({ page, pageSize, search: searchInput });
+  }, [fetchData, page, pageSize, searchInput]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleDelete = useCallback(
     async (id: string) => {
       if (!confirm("Delete this transaction?")) return;
       await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-      router.refresh();
+      // If this was the last item on the page, go to previous page
+      if (transactions.length === 1 && page > 1) {
+        const newPage = page - 1;
+        setPage(newPage);
+        updateUrl({ page: newPage });
+        fetchData({ page: newPage, pageSize, search: searchInput });
+      } else {
+        refetchCurrentPage();
+      }
     },
-    [router],
+    [
+      transactions.length,
+      page,
+      pageSize,
+      searchInput,
+      updateUrl,
+      fetchData,
+      refetchCurrentPage,
+    ],
   );
+
+  function handleSearchChange(value: string) {
+    setSearchInput(value);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      updateUrl({ search: value, page: 1 });
+      fetchData({ page: 1, pageSize, search: value });
+    }, 300);
+  }
+
+  function handlePageSizeChange(value: string) {
+    const newSize = value === "all" ? ("all" as const) : parseInt(value);
+    setPageSize(newSize);
+    setPage(1);
+    updateUrl({ pageSize: newSize, page: 1 });
+    fetchData({ page: 1, pageSize: newSize, search: searchInput });
+  }
+
+  function goToPage(newPage: number) {
+    setPage(newPage);
+    updateUrl({ page: newPage });
+    fetchData({ page: newPage, pageSize, search: searchInput });
+  }
 
   const context: GridContext = useMemo(
     () => ({
       categories,
       bankAccounts,
-      onSaved: () => router.refresh(),
+      onSaved: refetchCurrentPage,
       onEdit: setEditingTransaction,
       onDelete: handleDelete,
     }),
-    [categories, bankAccounts, router, handleDelete],
+    [categories, bankAccounts, refetchCurrentPage, handleDelete],
   );
 
   const ActionCell = useCallback(
@@ -422,34 +575,57 @@ export function TransactionsTable({
     [ActionCell],
   );
 
+  const totalPages =
+    pageSize === "all" ? 1 : Math.max(1, Math.ceil(total / pageSize));
+  const showPagination = pageSize !== "all" && totalPages > 1;
+  const rangeStart =
+    pageSize === "all" ? 1 : (page - 1) * (pageSize as number) + 1;
+  const rangeEnd =
+    pageSize === "all"
+      ? total
+      : Math.min(page * (pageSize as number), total);
+
   return (
     <>
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 pb-2">
         <input
           type="search"
           placeholder="Search transactions…"
           className="h-8 w-64 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          value={quickFilter}
-          onChange={(e) => setQuickFilter(e.target.value)}
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
         />
+        <select
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+          value={String(pageSize)}
+          onChange={(e) => handlePageSizeChange(e.target.value)}
+        >
+          <option value="20">Show 20</option>
+          <option value="50">Show 50</option>
+          <option value="all">Show All</option>
+        </select>
         <div className="ml-auto flex items-center gap-2">
-          {transactions.length > 0 && (
+          {total > 0 && (
             <span className="text-xs text-muted-foreground">
-              {transactions.length} transaction
-              {transactions.length !== 1 ? "s" : ""}
+              {total} transaction{total !== 1 ? "s" : ""}
             </span>
           )}
-          <CsvImportModal categories={categories} bankAccounts={bankAccounts} />
+          <CsvImportModal
+            categories={categories}
+            bankAccounts={bankAccounts}
+            onImported={refetchCurrentPage}
+          />
         </div>
       </div>
 
+      {/* ── Grid ────────────────────────────────────────────────────────── */}
       <div className="rounded-lg border overflow-hidden">
         <AgGridReact<Transaction>
           theme={theme}
           rowData={transactions}
           columnDefs={colDefs}
           context={context}
-          quickFilterText={quickFilter}
           domLayout="autoHeight"
           defaultColDef={{ sortable: true, resizable: true }}
           pinnedTopRowData={[{}]}
@@ -469,12 +645,63 @@ export function TransactionsTable({
               </div>
             </div>
           )}
+          loading={loading}
           suppressCellFocus
           suppressMovableColumns
           animateRows
         />
       </div>
 
+      {/* ── Pagination ──────────────────────────────────────────────────── */}
+      {showPagination && (
+        <div className="flex items-center justify-between px-1 pt-2">
+          <span className="text-xs text-muted-foreground">
+            Showing {rangeStart}–{rangeEnd} of {total}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              disabled={page <= 1}
+              onClick={() => goToPage(page - 1)}
+            >
+              <IconChevronLeft className="size-4" />
+            </Button>
+            {buildPageNumbers(page, totalPages).map((p, i) =>
+              p === "..." ? (
+                <span
+                  key={`ellipsis-${i}`}
+                  className="px-1 text-xs text-muted-foreground"
+                >
+                  ...
+                </span>
+              ) : (
+                <Button
+                  key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="icon"
+                  className="h-7 w-7 text-xs"
+                  onClick={() => goToPage(p)}
+                >
+                  {p}
+                </Button>
+              ),
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              disabled={page >= totalPages}
+              onClick={() => goToPage(page + 1)}
+            >
+              <IconChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit sheet ──────────────────────────────────────────────────── */}
       <Sheet
         open={!!editingTransaction}
         onOpenChange={(open) => !open && setEditingTransaction(null)}
@@ -488,7 +715,10 @@ export function TransactionsTable({
               categories={categories}
               bankAccounts={bankAccounts}
               transaction={editingTransaction}
-              onSuccess={() => setEditingTransaction(null)}
+              onSuccess={() => {
+                setEditingTransaction(null);
+                refetchCurrentPage();
+              }}
             />
           )}
         </SheetContent>

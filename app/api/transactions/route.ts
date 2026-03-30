@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { fetchTransactions } from "@/lib/transactions";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -10,17 +11,21 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
   const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
+  const pageSizeRaw = searchParams.get("pageSize") ?? "20";
+  const pageSize = pageSizeRaw === "all" ? "all" as const : Math.max(1, parseInt(pageSizeRaw));
+  const search = searchParams.get("search") ?? "";
 
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0, 23, 59, 59);
-
-  const transactions = await prisma.transaction.findMany({
-    where: { category: { userId: session.user.id }, date: { gte: start, lte: end } },
-    include: { category: true, bankAccount: true },
-    orderBy: { date: "desc" },
+  const { transactions, total } = await fetchTransactions({
+    userId: session.user.id,
+    month,
+    year,
+    page,
+    pageSize,
+    search: search || undefined,
   });
 
-  return NextResponse.json(transactions);
+  return NextResponse.json({ transactions, total, page, pageSize });
 }
 
 export async function POST(req: NextRequest) {

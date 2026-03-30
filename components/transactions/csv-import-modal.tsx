@@ -11,7 +11,6 @@ import {
 import { cn, dollarsToCents, formatCurrency } from "@/lib/utils";
 import { IconUpload, IconX } from "@tabler/icons-react";
 import DOMPurify from "dompurify";
-import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useRef, useState } from "react";
 
@@ -156,11 +155,13 @@ function CategorySelect({
 export function CsvImportModal({
   categories,
   bankAccounts,
+  onImported,
 }: {
   categories: Category[];
   bankAccounts: BankAccount[];
+  onImported?: () => void;
 }) {
-  const router = useRouter();
+
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"upload" | "preview" | "importing">("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -273,7 +274,7 @@ export function CsvImportModal({
 
       if (!res.ok) throw new Error();
       setOpen(false);
-      router.refresh();
+      onImported?.();
     } catch {
       setImportError("Import failed. Please try again.");
       setStep("preview");

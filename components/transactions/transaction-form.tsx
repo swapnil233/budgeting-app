@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { dollarsToCents } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type Category = { id: string; name: string; group: string };
@@ -41,7 +40,7 @@ export function TransactionForm({
   transaction,
   onSuccess,
 }: TransactionFormProps) {
-  const router = useRouter();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +81,6 @@ export function TransactionForm({
 
       if (!res.ok) throw new Error("Failed to save transaction");
 
-      router.refresh();
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

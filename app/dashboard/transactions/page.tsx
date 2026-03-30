@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { fetchTransactions } from "@/lib/transactions";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -18,36 +19,53 @@ import { redirect } from "next/navigation";
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string }>;
+  searchParams: Promise<{
+    month?: string;
+    year?: string;
+    page?: string;
+    pageSize?: string;
+    search?: string;
+  }>;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
   const userId = session.user.id;
 
-  const { month: monthStr, year: yearStr } = await searchParams;
+  const {
+    month: monthStr,
+    year: yearStr,
+    page: pageStr,
+    pageSize: pageSizeStr,
+    search,
+  } = await searchParams;
+
   const now = new Date();
   const month = parseInt(monthStr ?? String(now.getMonth() + 1));
   const year = parseInt(yearStr ?? String(now.getFullYear()));
+  const page = Math.max(1, parseInt(pageStr ?? "1"));
+  const pageSize =
+    pageSizeStr === "all" ? ("all" as const) : Math.max(1, parseInt(pageSizeStr ?? "20"));
 
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0, 23, 59, 59);
-
-  const [transactions, categories, bankAccounts] = await Promise.all([
-    prisma.transaction.findMany({
-      where: {
-        category: { userId: session.user.id },
-        date: { gte: start, lte: end },
-      },
-      include: { category: true, bankAccount: true },
-      orderBy: { date: "desc" },
-    }),
-    prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
-    prisma.bankAccount.findMany({
-      where: { userId: session.user.id },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const [{ transactions, total }, categories, bankAccounts] =
+    await Promise.all([
+      fetchTransactions({
+        userId,
+        month,
+        year,
+        page,
+        pageSize,
+        search: search || undefined,
+      }),
+      prisma.category.findMany({
+        where: { userId },
+        orderBy: [{ group: "asc" }, { name: "asc" }],
+      }),
+      prisma.bankAccount.findMany({
+        where: { userId },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
   return (
     <>
@@ -74,9 +92,14 @@ export default async function TransactionsPage({
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4">
         <TransactionsTable
-          transactions={transactions}
+          initialData={{ transactions, total }}
           categories={categories}
           bankAccounts={bankAccounts}
+          month={month}
+          year={year}
+          initialSearch={search ?? ""}
+          initialPage={page}
+          initialPageSize={pageSize}
         />
       </div>
     </>

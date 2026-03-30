@@ -17,7 +17,12 @@ export function MonthSelector({ month, year }: { month: number; year: number }) 
     let y = year;
     if (m < 1) { m = 12; y--; }
     if (m > 12) { m = 1; y++; }
-    const params = new URLSearchParams({ month: String(m), year: String(y) });
+    const params = new URLSearchParams(window.location.search);
+    params.set("month", String(m));
+    params.set("year", String(y));
+    // Reset pagination when month changes, keep pageSize preference
+    params.delete("page");
+    params.delete("search");
     router.push(`?${params.toString()}`);
   }
 
