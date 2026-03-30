@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/*.ts /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/*.mjs /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/*.json)",
+      "Bash(grep -r ag-grid /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/app --include=*.css --include=*.scss --include=*.tsx --include=*.ts)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(wc:*)",
+      "WebSearch"
+    ]
+  }
+}
