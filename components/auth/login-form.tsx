@@ -29,7 +29,7 @@ export function LoginForm({
     if (session) {
       router.push("/dashboard/transactions");
     }
-  });
+  }, [session, router]);
 
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -59,6 +59,7 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
+            {loadingError && <p className="text-destructive text-sm mb-2">{loadingError}</p>}
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>

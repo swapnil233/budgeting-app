@@ -10,7 +10,12 @@
       "Bash(wc:*)",
       "WebSearch",
       "WebFetch(domain:www.prisma.io)",
-      "Bash(grep -r \"title\\\\|description\\\\|name\\\\|Acme\" /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/app --include=*.tsx --include=*.ts)"
+      "Bash(grep -r \"title\\\\|description\\\\|name\\\\|Acme\" /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/app --include=*.tsx --include=*.ts)",
+      "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app -type f -name *auth*)",
+      "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app -maxdepth 2 -type f \\\\\\(-name middleware.ts -o -name *middleware* \\\\\\))",
+      "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app -maxdepth 2 -type f -name .env*)",
+      "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app/components -type f -name *.tsx)",
+      "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app -maxdepth 2 -not -path */node_modules* -not -path */.next* -type d)"
     ]
   }
 }

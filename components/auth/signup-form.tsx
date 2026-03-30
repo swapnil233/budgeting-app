@@ -13,6 +13,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signUp } from "@/lib/auth-client";
@@ -77,7 +78,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
             </Field>
             <Field>
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <Input id="password" name="password" type="password" required />
+              <Input id="password" name="password" type="password" minLength={8} required />
               <FieldDescription>
                 Must be at least 8 characters long.
               </FieldDescription>
@@ -89,7 +90,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                   Create account
                 </Button>
                 <FieldDescription className="px-6 text-center">
-                  Already have an account? <a href="#">Sign in</a>
+                  Already have an account? <Link href="/sign-in">Sign in</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
