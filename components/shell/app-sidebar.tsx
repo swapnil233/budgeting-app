@@ -6,10 +6,8 @@ import {
   IconChartBar,
   IconDashboard,
   IconFolder,
-  IconHelp,
   IconInnerShadowTop,
   IconListDetails,
-  IconSearch,
   IconSettings,
   IconTag,
 } from "@tabler/icons-react";
@@ -50,23 +48,7 @@ const data = {
       icon: IconFolder,
     },
   ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
+  navSecondary: [],
   documents: [
     {
       name: "Accounts",
