@@ -19,8 +19,10 @@ import {
 } from "@/lib/ag-grid";
 import {
   IconCheck,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
+  IconChevronUp,
   IconDownload,
   IconEdit,
   IconReceipt,
@@ -49,6 +51,13 @@ type Transaction = {
   category: Category;
   bankAccount: BankAccount | null;
 };
+
+type DayHeader = { __type: "day-header"; date: string; total: number };
+type GridRow = Transaction | DayHeader;
+
+function isDayHeader(row: GridRow): row is DayHeader {
+  return (row as DayHeader).__type === "day-header";
+}
 
 type GridContext = {
   categories: Category[];
@@ -248,6 +257,29 @@ function AddRowCellRenderer({ context }: ICellRendererParams) {
   );
 }
 
+// ── Day header renderer ───────────────────────────────────────────────────────
+
+function DayHeaderRenderer({ data }: ICellRendererParams) {
+  const { date, total } = data as DayHeader;
+  const label = new Date(date).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return (
+    <div className="flex items-center justify-between px-4 h-full bg-muted/40 border-b text-sm text-muted-foreground font-medium">
+      <span>{label}</span>
+      <span className="tabular-nums">{formatCurrency(total)}</span>
+    </div>
+  );
+}
+
+function FullWidthCellDispatcher(params: ICellRendererParams) {
+  if (params.node.rowPinned === "top") return <AddRowCellRenderer {...params} />;
+  return <DayHeaderRenderer {...params} />;
+}
+
 // ── Regular cell renderers ────────────────────────────────────────────────────
 
 function TypeBadge({ value }: ICellRendererParams) {
@@ -375,6 +407,7 @@ export function TransactionsTable({
   const [loading, setLoading] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -511,19 +544,34 @@ export function TransactionsTable({
     [categories, bankAccounts, refetchCurrentPage, handleDelete],
   );
 
+  const rowData: GridRow[] = useMemo(() => {
+    const sorted = [...transactions].sort((a, b) => {
+      const diff =
+        new Date(a.date).getTime() - new Date(b.date).getTime();
+      return sortDir === "desc" ? -diff : diff;
+    });
+    const result: GridRow[] = [];
+    let lastDate: string | null = null;
+    for (const t of sorted) {
+      const dateKey = new Date(t.date).toISOString().split("T")[0];
+      if (dateKey !== lastDate) {
+        const dayTotal = sorted
+          .filter(
+            (tx) =>
+              new Date(tx.date).toISOString().split("T")[0] === dateKey &&
+              tx.type === "EXPENSE",
+          )
+          .reduce((sum, tx) => sum + tx.amount, 0);
+        result.push({ __type: "day-header", date: dateKey, total: dayTotal });
+        lastDate = dateKey;
+      }
+      result.push(t);
+    }
+    return result;
+  }, [transactions, sortDir]);
+
   const colDefs: ColDef<Transaction>[] = useMemo(
     () => [
-      {
-        field: "date",
-        headerName: "Date",
-        width: 110,
-        valueFormatter: ({ value }) =>
-          new Date(value).toLocaleDateString("en-CA", {
-            month: "short",
-            day: "numeric",
-            timeZone: "UTC",
-          }),
-      },
       {
         field: "type",
         headerName: "Type",
@@ -595,6 +643,19 @@ export function TransactionsTable({
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+        >
+          Date
+          {sortDir === "desc" ? (
+            <IconChevronDown className="size-3.5" />
+          ) : (
+            <IconChevronUp className="size-3.5" />
+          )}
+        </Button>
         <select
           className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-ring"
           value={String(pageSize)}
@@ -634,20 +695,24 @@ export function TransactionsTable({
 
       {/* ── Grid ────────────────────────────────────────────────────────── */}
       <div className="rounded-lg border overflow-hidden">
-        <AgGridReact<Transaction>
+        <AgGridReact<GridRow>
           theme={theme}
-          rowData={transactions}
+          rowData={rowData}
           columnDefs={colDefs}
           context={context}
-          initialState={{
-            sort: { sortModel: [{ colId: "date", sort: "desc" }] },
-          }}
           domLayout="autoHeight"
-          defaultColDef={{ sortable: true, resizable: true }}
+          defaultColDef={{ sortable: false, resizable: true }}
           pinnedTopRowData={[{}]}
-          isFullWidthRow={(params) => params.rowNode.rowPinned === "top"}
-          fullWidthCellRenderer={AddRowCellRenderer}
-          getRowHeight={(params) => (params.node.rowPinned === "top" ? 48 : 40)}
+          isFullWidthRow={(params) =>
+            params.rowNode.rowPinned === "top" ||
+            (params.rowNode.data != null && isDayHeader(params.rowNode.data))
+          }
+          fullWidthCellRenderer={FullWidthCellDispatcher}
+          getRowHeight={(params) => {
+            if (params.node.rowPinned === "top") return 48;
+            if (params.data && isDayHeader(params.data as GridRow)) return 36;
+            return 40;
+          }}
           noRowsOverlayComponent={() => (
             <div className="flex flex-col items-center gap-3 pt-16 pb-8 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
