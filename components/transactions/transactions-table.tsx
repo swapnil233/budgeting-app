@@ -570,7 +570,7 @@ export function TransactionsTable({
     return result;
   }, [transactions, sortDir]);
 
-  const colDefs: ColDef<Transaction>[] = useMemo(
+  const colDefs: ColDef<GridRow>[] = useMemo(
     () => [
       {
         field: "type",
@@ -597,12 +597,12 @@ export function TransactionsTable({
         headerName: "Category",
         flex: 1,
         minWidth: 120,
-        valueGetter: ({ data }) => data?.category?.name ?? "",
+        valueGetter: ({ data }) => (data as Transaction | undefined)?.category?.name ?? "",
       },
       {
         headerName: "Account",
         width: 130,
-        valueGetter: ({ data }) => data?.bankAccount?.name ?? "",
+        valueGetter: ({ data }) => (data as Transaction | undefined)?.bankAccount?.name ?? "",
       },
       {
         field: "notes",
