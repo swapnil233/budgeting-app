@@ -13,19 +13,18 @@ import {
 import { formatCurrency, cn } from "@/lib/utils";
 import { useAgGridTheme } from "@/lib/ag-grid";
 import {
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
-  IconChevronUp,
   IconDownload,
   IconEdit,
   IconReceipt,
   IconTrash,
 } from "@tabler/icons-react";
-import { type ColDef, type ICellRendererParams } from "ag-grid-community";
+import { type ColDef, type ICellRendererParams, type SortChangedEvent, type GridReadyEvent } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useRef, useState, useCallback, useMemo, useEffect } from "react";
+import type { SortField } from "@/lib/transactions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -183,6 +182,8 @@ interface TransactionsTableProps {
   initialSearch: string;
   initialPage: number;
   initialPageSize: number | "all";
+  initialSortBy: SortField;
+  initialSortDir: "asc" | "desc";
 }
 
 export function TransactionsTable({
@@ -194,11 +195,15 @@ export function TransactionsTable({
   initialSearch,
   initialPage,
   initialPageSize,
+  initialSortBy,
+  initialSortDir,
 }: TransactionsTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const theme = useAgGridTheme();
+  const gridRef = useRef<AgGridReact>(null);
+  const sortProgrammatic = useRef(false);
 
   const [transactions, setTransactions] = useState(initialData.transactions);
   const [total, setTotal] = useState(initialData.total);
@@ -206,9 +211,9 @@ export function TransactionsTable({
   const [pageSize, setPageSize] = useState<number | "all">(initialPageSize);
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [loading, setLoading] = useState(false);
-  const [editingTransaction, setEditingTransaction] =
-    useState<Transaction | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [sortBy, setSortBy] = useState<SortField>(initialSortBy);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(initialSortDir);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -222,7 +227,16 @@ export function TransactionsTable({
     setPage(initialPage);
     setPageSize(initialPageSize);
     setSearchInput(initialSearch);
-  }, [initialData, initialPage, initialPageSize, initialSearch]);
+    setSortBy(initialSortBy);
+    setSortDir(initialSortDir);
+  }, [initialData, initialPage, initialPageSize, initialSearch, initialSortBy, initialSortDir]);
+
+  // Sync date column visibility when sort changes
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setColumnsVisible(["date"], sortBy !== "date");
+  }, [sortBy]);
 
   // ── URL sync ─────────────────────────────────────────────────────────────
 
@@ -231,6 +245,8 @@ export function TransactionsTable({
       page?: number;
       pageSize?: number | "all";
       search?: string;
+      sortBy?: SortField;
+      sortDir?: "asc" | "desc";
     }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (updates.page !== undefined) {
@@ -245,6 +261,14 @@ export function TransactionsTable({
         if (updates.search) params.set("search", updates.search);
         else params.delete("search");
       }
+      if (updates.sortBy !== undefined) {
+        if (updates.sortBy === "date") params.delete("sortBy");
+        else params.set("sortBy", updates.sortBy);
+      }
+      if (updates.sortDir !== undefined) {
+        if (updates.sortDir === "desc") params.delete("sortDir");
+        else params.set("sortDir", updates.sortDir);
+      }
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
     [router, pathname, searchParams],
@@ -257,6 +281,8 @@ export function TransactionsTable({
       page: number;
       pageSize: number | "all";
       search: string;
+      sortBy: SortField;
+      sortDir: "asc" | "desc";
     }) => {
       setLoading(true);
       try {
@@ -265,6 +291,8 @@ export function TransactionsTable({
           year: String(year),
           page: String(params.page),
           pageSize: String(params.pageSize),
+          sortBy: params.sortBy,
+          sortDir: params.sortDir,
         });
         if (params.search) sp.set("search", params.search);
         const res = await fetch(`/api/transactions?${sp.toString()}`);
@@ -280,8 +308,8 @@ export function TransactionsTable({
   );
 
   const refetchCurrentPage = useCallback(() => {
-    fetchData({ page, pageSize, search: searchInput });
-  }, [fetchData, page, pageSize, searchInput]);
+    fetchData({ page, pageSize, search: searchInput, sortBy, sortDir });
+  }, [fetchData, page, pageSize, searchInput, sortBy, sortDir]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -294,7 +322,7 @@ export function TransactionsTable({
         const newPage = page - 1;
         setPage(newPage);
         updateUrl({ page: newPage });
-        fetchData({ page: newPage, pageSize, search: searchInput });
+        fetchData({ page: newPage, pageSize, search: searchInput, sortBy, sortDir });
       } else {
         refetchCurrentPage();
       }
@@ -304,6 +332,8 @@ export function TransactionsTable({
       page,
       pageSize,
       searchInput,
+      sortBy,
+      sortDir,
       updateUrl,
       fetchData,
       refetchCurrentPage,
@@ -316,7 +346,7 @@ export function TransactionsTable({
     debounceRef.current = setTimeout(() => {
       setPage(1);
       updateUrl({ search: value, page: 1 });
-      fetchData({ page: 1, pageSize, search: value });
+      fetchData({ page: 1, pageSize, search: value, sortBy, sortDir });
     }, 300);
   }
 
@@ -325,14 +355,36 @@ export function TransactionsTable({
     setPageSize(newSize);
     setPage(1);
     updateUrl({ pageSize: newSize, page: 1 });
-    fetchData({ page: 1, pageSize: newSize, search: searchInput });
+    fetchData({ page: 1, pageSize: newSize, search: searchInput, sortBy, sortDir });
   }
 
   function goToPage(newPage: number) {
     setPage(newPage);
     updateUrl({ page: newPage });
-    fetchData({ page: newPage, pageSize, search: searchInput });
+    fetchData({ page: newPage, pageSize, search: searchInput, sortBy, sortDir });
   }
+
+  const handleSortChanged = useCallback((e: SortChangedEvent) => {
+    if (sortProgrammatic.current) return;
+    const col = e.api.getColumnState().find((c) => c.sort != null);
+    const newSortBy = (col?.colId ?? "date") as SortField;
+    const newSortDir = (col?.sort ?? "desc") as "asc" | "desc";
+    setSortBy(newSortBy);
+    setSortDir(newSortDir);
+    setPage(1);
+    updateUrl({ page: 1, sortBy: newSortBy, sortDir: newSortDir });
+    fetchData({ page: 1, pageSize, search: searchInput, sortBy: newSortBy, sortDir: newSortDir });
+  }, [updateUrl, fetchData, pageSize, searchInput]);
+
+  const handleGridReady = useCallback((e: GridReadyEvent) => {
+    sortProgrammatic.current = true;
+    e.api.applyColumnState({
+      state: [{ colId: sortBy, sort: sortDir }],
+      defaultState: { sort: null },
+    });
+    e.api.setColumnsVisible(["date"], sortBy !== "date");
+    sortProgrammatic.current = false;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const context: GridContext = useMemo(
     () => ({
@@ -344,18 +396,15 @@ export function TransactionsTable({
     [categories, bankAccounts, handleDelete],
   );
 
+  // Data comes pre-sorted from server; insert day-header rows only when sorting by date
   const rowData: GridRow[] = useMemo(() => {
-    const sorted = [...transactions].sort((a, b) => {
-      const diff =
-        new Date(a.date).getTime() - new Date(b.date).getTime();
-      return sortDir === "desc" ? -diff : diff;
-    });
+    if (sortBy !== "date") return transactions;
     const result: GridRow[] = [];
     let lastDate: string | null = null;
-    for (const t of sorted) {
+    for (const t of transactions) {
       const dateKey = new Date(t.date).toISOString().split("T")[0];
       if (dateKey !== lastDate) {
-        const dayTotal = sorted
+        const dayTotal = transactions
           .filter(
             (tx) =>
               new Date(tx.date).toISOString().split("T")[0] === dateKey &&
@@ -368,18 +417,33 @@ export function TransactionsTable({
       result.push(t);
     }
     return result;
-  }, [transactions, sortDir]);
+  }, [transactions, sortBy]);
 
   const colDefs: ColDef<GridRow>[] = useMemo(
     () => [
       {
+        colId: "date",
+        headerName: "Date",
+        width: 110,
+        hide: true, // shown only when not sorting by date (controlled via grid API)
+        valueGetter: ({ data }) => {
+          const t = data as Transaction | undefined;
+          if (!t || isDayHeader(data as GridRow)) return "";
+          return new Date(t.date).toLocaleDateString("en-US", {
+            month: "short", day: "numeric", timeZone: "UTC",
+          });
+        },
+      },
+      {
         field: "type",
+        colId: "type",
         headerName: "Type",
         width: 105,
         cellRenderer: TypeBadge,
       },
       {
         field: "merchant",
+        colId: "merchant",
         headerName: "Merchant",
         flex: 2,
         minWidth: 140,
@@ -387,6 +451,7 @@ export function TransactionsTable({
       },
       {
         field: "amount",
+        colId: "amount",
         headerName: "Amount",
         width: 120,
         headerClass: "ag-right-aligned-header",
@@ -394,18 +459,21 @@ export function TransactionsTable({
         cellRenderer: AmountCell,
       },
       {
+        colId: "category",
         headerName: "Category",
         flex: 1,
         minWidth: 120,
         valueGetter: ({ data }) => (data as Transaction | undefined)?.category?.name ?? "",
       },
       {
+        colId: "account",
         headerName: "Account",
         width: 130,
         valueGetter: ({ data }) => (data as Transaction | undefined)?.bankAccount?.name ?? "",
       },
       {
         field: "notes",
+        colId: "notes",
         headerName: "Notes",
         flex: 1,
         minWidth: 80,
@@ -443,19 +511,6 @@ export function TransactionsTable({
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5"
-          onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
-        >
-          Date
-          {sortDir === "desc" ? (
-            <IconChevronDown className="size-3.5" />
-          ) : (
-            <IconChevronUp className="size-3.5" />
-          )}
-        </Button>
         <select
           className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-ring"
           value={String(pageSize)}
@@ -502,12 +557,13 @@ export function TransactionsTable({
       <div className="rounded-lg border overflow-x-auto">
         <div className="min-w-[600px]">
         <AgGridReact<GridRow>
+          ref={gridRef}
           theme={theme}
           rowData={rowData}
           columnDefs={colDefs}
           context={context}
           domLayout="autoHeight"
-          defaultColDef={{ sortable: false, resizable: true }}
+          defaultColDef={{ sortable: true, resizable: true }}
           isFullWidthRow={(params) =>
             params.rowNode.data != null && isDayHeader(params.rowNode.data)
           }
@@ -533,6 +589,8 @@ export function TransactionsTable({
           suppressCellFocus
           suppressMovableColumns
           animateRows
+          onGridReady={handleGridReady}
+          onSortChanged={handleSortChanged}
           onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
         />
         </div>
