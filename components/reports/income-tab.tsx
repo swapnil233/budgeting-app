@@ -4,14 +4,6 @@ import { formatCurrency } from "@/lib/utils";
 import type { ReportsData } from "./reports-data";
 import { INCOME_CAT_COLORS } from "./reports-data";
 
-function SummaryRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
-  return (
-    <div className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={`font-medium tabular-nums ${valueClass ?? ""}`}>{value}</span>
-    </div>
-  );
-}
 
 export function IncomeTab({ data }: { data: ReportsData }) {
   const {
@@ -29,34 +21,34 @@ export function IncomeTab({ data }: { data: ReportsData }) {
     );
   }
 
-  const formatDate = (d: Date | null) =>
-    d ? d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }) : "—";
-
   return (
     <div className="space-y-6">
-      {/* Summary panel */}
-      <div className="rounded-lg border bg-card p-4">
-        <p className="text-sm font-semibold mb-3">Summary</p>
-        <SummaryRow label="Total transactions" value={String(stats.totalTxns)} />
-        <SummaryRow label="Income transactions" value={String(stats.incomeTxns)} />
-        <SummaryRow
-          label="Largest income"
-          value={`+${formatCurrency(stats.largest)}`}
-          valueClass="text-green-600 dark:text-green-400"
-        />
-        <SummaryRow
-          label="Average income"
-          value={`+${formatCurrency(stats.avgIncome)}`}
-          valueClass="text-green-600 dark:text-green-400"
-        />
-        <SummaryRow
-          label="Total income"
-          value={`+${formatCurrency(totalIncome)}`}
-          valueClass="text-green-600 dark:text-green-400"
-        />
-        <SummaryRow label="Total spending" value={formatCurrency(totalExpenses)} />
-        <SummaryRow label="First transaction" value={formatDate(stats.firstDate)} />
-        <SummaryRow label="Last transaction" value={formatDate(stats.lastDate)} />
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Transactions */}
+        <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Transactions</p>
+          <p className="text-3xl font-bold tabular-nums">{stats.totalTxns}</p>
+          <p className="text-sm text-muted-foreground">
+            <span className="text-green-600 dark:text-green-400 font-medium">{stats.incomeTxns} income</span>
+            {" · "}
+            {stats.totalTxns - stats.incomeTxns} expenses
+          </p>
+        </div>
+
+        {/* Total income */}
+        <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total income</p>
+          <p className="text-3xl font-bold tabular-nums text-green-600 dark:text-green-400">
+            +{formatCurrency(totalIncome)}
+          </p>
+        </div>
+
+        {/* Total spending */}
+        <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total spending</p>
+          <p className="text-3xl font-bold tabular-nums">{formatCurrency(totalExpenses)}</p>
+        </div>
       </div>
 
       {/* Top income sources */}
