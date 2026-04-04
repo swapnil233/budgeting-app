@@ -5,6 +5,16 @@ import { AddTransactionButton } from "./add-transaction-button";
 import { CsvImportModal } from "./csv-import-modal";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -55,7 +65,7 @@ type GridContext = {
   categories: Category[];
   bankAccounts: BankAccount[];
   onEdit: (t: Transaction) => void;
-  onDelete: (id: string) => void;
+  onRequestDelete: (id: string) => void;
 };
 
 // ── Day header renderer ───────────────────────────────────────────────────────
@@ -130,7 +140,7 @@ function MerchantCell({ data }: ICellRendererParams<Transaction>) {
 
 function ActionCellRenderer({ data, context }: ICellRendererParams<Transaction>) {
   if (!data) return null;
-  const { onEdit, onDelete } = context as GridContext;
+  const { onEdit, onRequestDelete } = context as GridContext;
   return (
     <div className="flex items-center gap-1">
       <Button
@@ -145,7 +155,7 @@ function ActionCellRenderer({ data, context }: ICellRendererParams<Transaction>)
         variant="ghost"
         size="icon"
         className="h-7 w-7 text-destructive hover:text-destructive"
-        onClick={() => onDelete(data.id)}
+        onClick={() => onRequestDelete(data.id)}
       >
         <IconTrash className="size-3.5" />
       </Button>
@@ -212,6 +222,7 @@ export function TransactionsTable({
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [loading, setLoading] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortField>(initialSortBy);
   const [sortDir, setSortDir] = useState<"asc" | "desc">(initialSortDir);
 
@@ -315,7 +326,7 @@ export function TransactionsTable({
 
   const handleDelete = useCallback(
     async (id: string) => {
-      if (!confirm("Delete this transaction?")) return;
+      setDeletingId(null);
       await fetch(`/api/transactions/${id}`, { method: "DELETE" });
       // If this was the last item on the page, go to previous page
       if (transactions.length === 1 && page > 1) {
@@ -391,9 +402,9 @@ export function TransactionsTable({
       categories,
       bankAccounts,
       onEdit: setEditingTransaction,
-      onDelete: handleDelete,
+      onRequestDelete: setDeletingId,
     }),
-    [categories, bankAccounts, handleDelete],
+    [categories, bankAccounts],
   );
 
   // Data comes pre-sorted from server; insert day-header rows only when sorting by date
@@ -644,6 +655,27 @@ export function TransactionsTable({
           </div>
         </div>
       )}
+
+      {/* ── Delete dialog ───────────────────────────────────────────────── */}
+      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingId && handleDelete(deletingId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Edit sheet ──────────────────────────────────────────────────── */}
       <Sheet
