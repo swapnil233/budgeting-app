@@ -3,7 +3,6 @@
 import { formatCurrency } from "@/lib/utils";
 import {
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -12,10 +11,10 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
 } from "recharts";
 import type { ReportsData } from "./reports-data";
 import { GROUP_COLORS, GROUP_LABELS } from "./reports-data";
+import { useTheme } from "next-themes";
 
 const RADIAN = Math.PI / 180;
 function PieLabel({
@@ -40,6 +39,17 @@ function PieLabel({
 
 export function SpendingTab({ data }: { data: ReportsData }) {
   const { spendByGroup, topCategories, totalExpenses } = data;
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
+  const mutedColor = dark ? "#8a98c8" : "#6b79a8";
+  const fgColor = dark ? "#f3f2ff" : "#1a1528";
+  const tooltipStyle = {
+    fontSize: 12,
+    borderRadius: 6,
+    border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "#dde1f0"}`,
+    background: dark ? "#1c1a2e" : "#ffffff",
+    color: fgColor,
+  };
 
   if (totalExpenses === 0) {
     return (
@@ -84,12 +94,7 @@ export function SpendingTab({ data }: { data: ReportsData }) {
                 </Pie>
                 <Tooltip
                   formatter={(v: unknown) => formatCurrency(Number(v))}
-                  contentStyle={{
-                    fontSize: 12,
-                    borderRadius: 6,
-                    border: "1px solid hsl(var(--border))",
-                    background: "hsl(var(--card))",
-                  }}
+                  contentStyle={tooltipStyle}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -144,30 +149,23 @@ export function SpendingTab({ data }: { data: ReportsData }) {
               <XAxis
                 type="number"
                 tickFormatter={(v) => `$${(v / 100).toFixed(0)}`}
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: mutedColor }}
                 tickLine={false}
                 axisLine={false}
-                stroke="hsl(var(--muted-foreground))"
               />
               <YAxis
                 type="category"
                 dataKey="name"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 12, fill: fgColor }}
                 tickLine={false}
                 axisLine={false}
                 width={130}
-                stroke="hsl(var(--muted-foreground))"
               />
               <Tooltip
                 formatter={(v: unknown) => [formatCurrency(Number(v)), "Spent"]}
-                contentStyle={{
-                  fontSize: 12,
-                  borderRadius: 6,
-                  border: "1px solid hsl(var(--border))",
-                  background: "hsl(var(--card))",
-                }}
+                contentStyle={tooltipStyle}
               />
-              <Bar dataKey="amount" radius={[0, 3, 3, 0]} label={{ position: "right", fontSize: 11, formatter: (v: unknown) => formatCurrency(Number(v)) }}>
+              <Bar dataKey="amount" radius={[0, 3, 3, 0]} label={{ position: "right", fontSize: 11, fill: fgColor, formatter: (v: unknown) => formatCurrency(Number(v)) }}>
                 {topCategories.map((c, i) => (
                   <Cell key={i} fill={GROUP_COLORS[c.group]} fillOpacity={0.85} />
                 ))}

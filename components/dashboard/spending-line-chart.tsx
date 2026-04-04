@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Area,
   AreaChart,
@@ -31,6 +32,16 @@ const MONTHS = [
 ];
 
 export function SpendingLineChart({ data, totalThisMonth, month, year }: SpendingLineChartProps) {
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
+  const mutedColor = dark ? "#8a98c8" : "#6b79a8";
+  const tooltipStyle = {
+    fontSize: 12,
+    border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "#dde1f0"}`,
+    background: dark ? "#1c1a2e" : "#ffffff",
+    color: dark ? "#f3f2ff" : "#1a1528",
+  };
+
   // Only render up to today if current month
   const now = new Date();
   const isCurrentMonth = now.getMonth() + 1 === month && now.getFullYear() === year;
@@ -67,14 +78,14 @@ export function SpendingLineChart({ data, totalThisMonth, month, year }: Spendin
             <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.06} />
             <XAxis
               dataKey="day"
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: mutedColor }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(d) => `${d}`}
               interval={Math.floor(data.length / 6)}
             />
             <YAxis
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: mutedColor }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v) => `$${v}`}
@@ -86,7 +97,7 @@ export function SpendingLineChart({ data, totalThisMonth, month, year }: Spendin
                 name === "thisMonth" ? MONTHS[month - 1] : MONTHS[month === 1 ? 11 : month - 2],
               ]}
               labelFormatter={(day) => `Day ${day}`}
-              contentStyle={{ fontSize: 12 }}
+              contentStyle={tooltipStyle}
             />
             <Area
               type="monotone"
