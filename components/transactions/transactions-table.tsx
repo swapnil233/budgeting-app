@@ -1,6 +1,7 @@
 "use client";
 
 import { TransactionForm } from "./transaction-form";
+import { AddTransactionButton } from "./add-transaction-button";
 import { CsvImportModal } from "./csv-import-modal";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,16 +10,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatCurrency, dollarsToCents, cn } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
+import { useAgGridTheme } from "@/lib/ag-grid";
 import {
-  useAgGridTheme,
-  addRowInput,
-  addRowSelect,
-  GROUP_ORDER,
-  GROUP_LABELS,
-} from "@/lib/ag-grid";
-import {
-  IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
@@ -27,7 +21,6 @@ import {
   IconEdit,
   IconReceipt,
   IconTrash,
-  IconX,
 } from "@tabler/icons-react";
 import { type ColDef, type ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
@@ -62,200 +55,9 @@ function isDayHeader(row: GridRow): row is DayHeader {
 type GridContext = {
   categories: Category[];
   bankAccounts: BankAccount[];
-  onSaved: () => void;
   onEdit: (t: Transaction) => void;
   onDelete: (id: string) => void;
 };
-
-const inp = addRowInput;
-const sel = addRowSelect;
-
-// ── Pinned add-row renderer ───────────────────────────────────────────────────
-
-function AddRowCellRenderer({ context }: ICellRendererParams) {
-  const { categories, bankAccounts, onSaved } = context as GridContext;
-  const merchantRef = useRef<HTMLInputElement>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [row, setRow] = useState({
-    date: new Date().toISOString().split("T")[0],
-    type: "EXPENSE" as "EXPENSE" | "INCOME",
-    merchant: "",
-    amount: "",
-    categoryId: categories[0]?.id ?? "",
-    bankAccountId: "",
-    notes: "",
-  });
-
-  function set<K extends keyof typeof row>(key: K, value: (typeof row)[K]) {
-    setRow((p) => ({ ...p, [key]: value }));
-  }
-  function reset() {
-    setRow({
-      date: new Date().toISOString().split("T")[0],
-      type: "EXPENSE",
-      merchant: "",
-      amount: "",
-      categoryId: categories[0]?.id ?? "",
-      bankAccountId: "",
-      notes: "",
-    });
-    setError(null);
-    merchantRef.current?.focus();
-  }
-
-  async function save() {
-    if (!row.merchant.trim() || !row.amount || !row.categoryId) {
-      setError("Fill in merchant, amount & category.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: row.type,
-          merchant: row.merchant.trim(),
-          amount: dollarsToCents(row.amount),
-          notes: row.notes.trim() || null,
-          review: false,
-          date: row.date,
-          categoryId: row.categoryId,
-          bankAccountId: row.bankAccountId || null,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      reset();
-      onSaved();
-    } catch {
-      setError("Failed to save.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      save();
-    }
-    if (e.key === "Escape") reset();
-  }
-
-  const byGroup = GROUP_ORDER.reduce<Record<string, Category[]>>((acc, g) => {
-    acc[g] = categories.filter((c) => c.group === g);
-    return acc;
-  }, {});
-
-  return (
-    <div
-      className="flex h-full w-full items-center gap-1.5 px-2"
-      onKeyDown={handleKeyDown}
-    >
-      {/* Date */}
-      <input
-        type="date"
-        className={cn(inp, "w-[118px] shrink-0")}
-        value={row.date}
-        onChange={(e) => set("date", e.target.value)}
-      />
-      {/* Type */}
-      <select
-        className={cn(sel, "w-[90px] shrink-0")}
-        value={row.type}
-        onChange={(e) => set("type", e.target.value as "EXPENSE" | "INCOME")}
-      >
-        <option value="EXPENSE">Expense</option>
-        <option value="INCOME">Income</option>
-      </select>
-      {/* Merchant */}
-      <input
-        ref={merchantRef}
-        type="text"
-        className={cn(inp, "min-w-0 flex-[2]")}
-        placeholder="Merchant…"
-        value={row.merchant}
-        onChange={(e) => set("merchant", e.target.value)}
-      />
-      {/* Amount */}
-      <input
-        type="number"
-        min="0"
-        step="0.01"
-        className={cn(inp, "w-[88px] shrink-0 text-right")}
-        placeholder="0.00"
-        value={row.amount}
-        onChange={(e) => set("amount", e.target.value)}
-      />
-      {/* Category */}
-      <select
-        className={cn(sel, "w-[140px] shrink-0")}
-        value={row.categoryId}
-        onChange={(e) => set("categoryId", e.target.value)}
-      >
-        {GROUP_ORDER.map((g) =>
-          byGroup[g]?.length ? (
-            <optgroup key={g} label={GROUP_LABELS[g]}>
-              {byGroup[g].map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </optgroup>
-          ) : null,
-        )}
-      </select>
-      {/* Account */}
-      <select
-        className={cn(sel, "w-[120px] shrink-0")}
-        value={row.bankAccountId}
-        onChange={(e) => set("bankAccountId", e.target.value)}
-      >
-        <option value="">No account</option>
-        {bankAccounts.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
-      {/* Notes */}
-      <input
-        type="text"
-        className={cn(inp, "flex-1 min-w-0")}
-        placeholder="Notes…"
-        value={row.notes}
-        onChange={(e) => set("notes", e.target.value)}
-      />
-      {/* Actions */}
-      <div className="flex shrink-0 items-center gap-0.5">
-        {error && (
-          <span className="text-xs text-destructive mr-1">{error}</span>
-        )}
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
-          onClick={save}
-          disabled={saving}
-          title="Save (Enter)"
-        >
-          <IconCheck className="size-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7 text-muted-foreground"
-          onClick={reset}
-          title="Clear (Esc)"
-        >
-          <IconX className="size-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 // ── Day header renderer ───────────────────────────────────────────────────────
 
@@ -276,7 +78,6 @@ function DayHeaderRenderer({ data }: ICellRendererParams) {
 }
 
 function FullWidthCellDispatcher(params: ICellRendererParams) {
-  if (params.node.rowPinned === "top") return <AddRowCellRenderer {...params} />;
   return <DayHeaderRenderer {...params} />;
 }
 
@@ -537,11 +338,10 @@ export function TransactionsTable({
     () => ({
       categories,
       bankAccounts,
-      onSaved: refetchCurrentPage,
       onEdit: setEditingTransaction,
       onDelete: handleDelete,
     }),
-    [categories, bankAccounts, refetchCurrentPage, handleDelete],
+    [categories, bankAccounts, handleDelete],
   );
 
   const rowData: GridRow[] = useMemo(() => {
@@ -635,11 +435,11 @@ export function TransactionsTable({
   return (
     <>
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 pb-2">
+      <div className="flex flex-wrap items-center gap-2 pb-2">
         <input
           type="search"
           placeholder="Search transactions…"
-          className="h-8 w-64 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+          className="h-8 w-48 min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
@@ -667,14 +467,14 @@ export function TransactionsTable({
         </select>
         <div className="ml-auto flex items-center gap-2">
           {total > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden sm:inline text-xs text-muted-foreground">
               {total} transaction{total !== 1 ? "s" : ""}
             </span>
           )}
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 hidden sm:flex"
             onClick={() => {
               const a = document.createElement("a");
               a.href = "/api/transactions/export";
@@ -690,11 +490,17 @@ export function TransactionsTable({
             bankAccounts={bankAccounts}
             onImported={refetchCurrentPage}
           />
+          <AddTransactionButton
+            categories={categories}
+            bankAccounts={bankAccounts}
+            onSuccess={refetchCurrentPage}
+          />
         </div>
       </div>
 
       {/* ── Grid ────────────────────────────────────────────────────────── */}
-      <div className="rounded-lg border overflow-hidden">
+      <div className="rounded-lg border overflow-x-auto">
+        <div className="min-w-[600px]">
         <AgGridReact<GridRow>
           theme={theme}
           rowData={rowData}
@@ -702,14 +508,11 @@ export function TransactionsTable({
           context={context}
           domLayout="autoHeight"
           defaultColDef={{ sortable: false, resizable: true }}
-          pinnedTopRowData={[{}]}
           isFullWidthRow={(params) =>
-            params.rowNode.rowPinned === "top" ||
-            (params.rowNode.data != null && isDayHeader(params.rowNode.data))
+            params.rowNode.data != null && isDayHeader(params.rowNode.data)
           }
           fullWidthCellRenderer={FullWidthCellDispatcher}
           getRowHeight={(params) => {
-            if (params.node.rowPinned === "top") return 48;
             if (params.data && isDayHeader(params.data as GridRow)) return 36;
             return 40;
           }}
@@ -721,7 +524,7 @@ export function TransactionsTable({
               <div>
                 <p className="text-sm font-medium">No transactions yet</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Use the row above to log your first transaction.
+                  Use the Add Transaction button to log your first transaction.
                 </p>
               </div>
             </div>
@@ -732,6 +535,7 @@ export function TransactionsTable({
           animateRows
           onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
         />
+        </div>
       </div>
 
       {/* ── Pagination ──────────────────────────────────────────────────── */}
