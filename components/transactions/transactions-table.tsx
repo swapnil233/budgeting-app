@@ -563,7 +563,7 @@ export function TransactionsTable({
           columnDefs={colDefs}
           context={context}
           domLayout="autoHeight"
-          defaultColDef={{ sortable: true, resizable: true }}
+          defaultColDef={{ sortable: true, resizable: true, comparator: () => 0 }}
           isFullWidthRow={(params) =>
             params.rowNode.data != null && isDayHeader(params.rowNode.data)
           }
