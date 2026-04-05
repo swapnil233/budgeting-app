@@ -18,7 +18,10 @@
       "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app -maxdepth 2 -not -path */node_modules* -not -path */.next* -type d)",
       "Bash(xargs grep:*)",
       "Bash(find /c/Users/swapn/OneDrive/Documents/GitHub/budgeting-app -path *dashboard/settings* -o -path *api/settings*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx shadcn@latest add alert-dialog)",
+      "Bash(node:*)",
+      "Bash(npx prisma:*)"
     ]
   }
 }

@@ -1,4 +1,5 @@
 import { AccountsTable } from "@/components/accounts/accounts-table";
+import { LinkedAccountsSection } from "@/components/plaid/LinkedAccountsSection";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -18,10 +19,20 @@ export default async function AccountsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const accounts = await prisma.bankAccount.findMany({
-    where: { userId: session.user.id },
-    orderBy: { name: "asc" },
-  });
+  const [accounts, plaidItems] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where: { userId: session.user.id },
+      orderBy: { name: "asc" },
+    }),
+    prisma.plaidItem.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "asc" },
+      include: { plaidAccounts: { orderBy: { name: "asc" } } },
+    }),
+  ]);
+
+  // Strip the encrypted access token before passing to the client.
+  const safePlaidItems = plaidItems.map(({ accessTokenEncrypted: _, ...rest }) => rest);
 
   return (
     <>
@@ -43,7 +54,7 @@ export default async function AccountsPage() {
           </BreadcrumbList>
         </Breadcrumb>
       </header>
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-6 p-4">
         <div>
           <h1 className="text-lg font-semibold">Bank Accounts</h1>
           <p className="text-sm text-muted-foreground">
@@ -51,6 +62,8 @@ export default async function AccountsPage() {
           </p>
         </div>
         <AccountsTable accounts={accounts} />
+        <Separator />
+        <LinkedAccountsSection initialItems={safePlaidItems} />
       </div>
     </>
   );

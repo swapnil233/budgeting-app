@@ -25,6 +25,7 @@ model User {
   accounts      Account[]
   bankAccounts  BankAccount[]
   categories    Category[]
+  plaidItems    PlaidItem[]
 
   @@unique([email])
   @@map("user")
@@ -150,4 +151,71 @@ model Transaction {
   categoryId    String
   bankAccount   BankAccount?     @relation(fields: [bankAccountId], references: [id])
   bankAccountId String?
+}
+
+// ── Plaid integration ──────────────────────────────────────────────────────────
+
+model PlaidItem {
+  id                   String             @id @default(uuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId               String             @unique
+  accessTokenEncrypted String
+  cursor               String?
+  institutionId        String?
+  institutionName      String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  plaidAccounts        PlaidAccount[]
+  plaidTransactions    PlaidTransaction[]
+
+  @@index([userId])
+  @@map("plaid_item")
+}
+
+model PlaidAccount {
+  id               String             @id @default(uuid())
+  plaidAccountId   String             @unique
+  plaidItemId      String
+  plaidItem        PlaidItem          @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+  name             String
+  officialName     String?
+  mask             String?
+  type             String
+  subtype          String?
+  currentBalance   Float?
+  availableBalance Float?
+  currencyCode     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  plaidTransactions PlaidTransaction[]
+
+  @@index([plaidItemId])
+  @@map("plaid_account")
+}
+
+model PlaidTransaction {
+  id                 String       @id @default(uuid())
+  plaidTransactionId String       @unique
+  plaidItemId        String
+  plaidItem          PlaidItem    @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+  plaidAccountId     String
+  plaidAccount       PlaidAccount @relation(fields: [plaidAccountId], references: [plaidAccountId])
+  name               String
+  merchantName       String?
+  amount             Float
+  isoCurrencyCode    String?
+  date               DateTime
+  authorizedDate     DateTime?
+  pending            Boolean      @default(false)
+  categoryPrimary    String?
+  categoryDetailed   String?
+  rawJson            Json
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([plaidItemId])
+  @@index([plaidAccountId])
+  @@index([date])
+  @@map("plaid_transaction")
 }
