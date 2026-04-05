@@ -207,6 +207,7 @@ export function CsvImportModal({
         const amtKey = col(["amount", "amt"]);
         const typeKey = col(["inout", "type", "direction", "credit", "debit"]);
         const noteKey = col(["note", "memo"]);
+        const acctKey = col(["bankaccount", "account", "bank"]);
 
         const parsed: ParsedRow[] = results.data.map((row, i) => {
           const categoryName = sanitize(row[catKey] ?? "");
@@ -215,10 +216,14 @@ export function CsvImportModal({
           const date = parseDate(sanitize(row[dateKey] ?? ""));
           const amount = parseAmount(sanitize(row[amtKey] ?? "0"));
           const type = parseType(sanitize(row[typeKey] ?? "out"));
+          const accountName = sanitize(row[acctKey] ?? "");
 
           const matched = categories.find(
             (c) => c.name.toLowerCase() === categoryName.toLowerCase()
           );
+          const matchedAccount = accountName
+            ? bankAccounts.find((a) => a.name.toLowerCase() === accountName.toLowerCase())
+            : undefined;
 
           return {
             _id: `r${i}`,
@@ -230,7 +235,7 @@ export function CsvImportModal({
             categoryName,
             categoryId: matched?.id ?? null,
             isNewCategory: !matched,
-            bankAccountId: null,
+            bankAccountId: matchedAccount?.id ?? null,
           };
         });
 

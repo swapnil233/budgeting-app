@@ -27,6 +27,7 @@ import {
   IconChevronRight,
   IconDownload,
   IconEdit,
+  IconLoader2,
   IconReceipt,
   IconTrash,
 } from "@tabler/icons-react";
@@ -223,6 +224,7 @@ export function TransactionsTable({
   const [loading, setLoading] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [sortBy, setSortBy] = useState<SortField>(initialSortBy);
   const [sortDir, setSortDir] = useState<"asc" | "desc">(initialSortDir);
 
@@ -541,14 +543,28 @@ export function TransactionsTable({
             variant="outline"
             size="sm"
             className="h-8 gap-1.5 hidden sm:flex"
-            onClick={() => {
-              const a = document.createElement("a");
-              a.href = "/api/transactions/export";
-              a.download = "transactions.csv";
-              a.click();
+            disabled={isExporting}
+            onClick={async () => {
+              setIsExporting(true);
+              try {
+                const res = await fetch("/api/transactions/export");
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "transactions.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+              } finally {
+                setIsExporting(false);
+              }
             }}
           >
-            <IconDownload className="size-3.5" />
+            {isExporting ? (
+              <IconLoader2 className="size-3.5 animate-spin" />
+            ) : (
+              <IconDownload className="size-3.5" />
+            )}
             Export CSV
           </Button>
           <CsvImportModal
