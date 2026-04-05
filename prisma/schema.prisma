@@ -138,19 +138,20 @@ enum TRANSACTION_TYPE {
 }
 
 model Transaction {
-  id            String           @id @default(uuid())
-  type          TRANSACTION_TYPE
-  merchant      String
-  amount        Int
-  notes         String?
-  review        Boolean          @default(false)
-  date          DateTime         @default(now())
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  category      Category         @relation(fields: [categoryId], references: [id])
-  categoryId    String
-  bankAccount   BankAccount?     @relation(fields: [bankAccountId], references: [id])
-  bankAccountId String?
+  id               String            @id @default(uuid())
+  type             TRANSACTION_TYPE
+  merchant         String
+  amount           Int
+  notes            String?
+  review           Boolean           @default(false)
+  date             DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  category         Category          @relation(fields: [categoryId], references: [id])
+  categoryId       String
+  bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  bankAccountId    String?
+  plaidTransaction PlaidTransaction?
 }
 
 // ── Plaid integration ──────────────────────────────────────────────────────────
@@ -195,27 +196,31 @@ model PlaidAccount {
 }
 
 model PlaidTransaction {
-  id                 String       @id @default(uuid())
-  plaidTransactionId String       @unique
-  plaidItemId        String
-  plaidItem          PlaidItem    @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
-  plaidAccountId     String
-  plaidAccount       PlaidAccount @relation(fields: [plaidAccountId], references: [plaidAccountId])
-  name               String
-  merchantName       String?
-  amount             Float
-  isoCurrencyCode    String?
-  date               DateTime
-  authorizedDate     DateTime?
-  pending            Boolean      @default(false)
-  categoryPrimary    String?
-  categoryDetailed   String?
-  rawJson            Json
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  id                    String       @id @default(uuid())
+  plaidTransactionId    String       @unique
+  plaidItemId           String
+  plaidItem             PlaidItem    @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+  plaidAccountId        String
+  plaidAccount          PlaidAccount @relation(fields: [plaidAccountId], references: [plaidAccountId])
+  name                  String
+  merchantName          String?
+  amount                Float
+  isoCurrencyCode       String?
+  date                  DateTime
+  authorizedDate        DateTime?
+  pending               Boolean      @default(false)
+  categoryPrimary       String?
+  categoryDetailed      String?
+  rawJson               Json
+  importedAt            DateTime?
+  importedTransactionId String?      @unique
+  importedTransaction   Transaction? @relation(fields: [importedTransactionId], references: [id], onDelete: SetNull)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   @@index([plaidItemId])
   @@index([plaidAccountId])
   @@index([date])
+  @@index([importedAt])
   @@map("plaid_transaction")
 }

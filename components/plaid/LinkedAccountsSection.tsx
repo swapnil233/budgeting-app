@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ConnectBankButton } from "@/components/plaid/ConnectBankButton";
+import { PlaidImportModal } from "@/components/plaid/PlaidImportModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,14 +26,33 @@ interface PlaidItemData {
   plaidAccounts: PlaidAccountData[];
 }
 
+type Category = { id: string; name: string; group: string };
+type BankAccount = { id: string; name: string };
+
 interface Props {
   initialItems: PlaidItemData[];
+  categories: Category[];
+  bankAccounts: BankAccount[];
 }
 
-export function LinkedAccountsSection({ initialItems }: Props) {
+export function LinkedAccountsSection({ initialItems, categories, bankAccounts }: Props) {
   const [items, setItems] = useState<PlaidItemData[]>(initialItems);
-  const [syncing, setSyncing] = useState<string | null>(null); // itemId being synced
+  const [syncing, setSyncing] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [unimportedCount, setUnimportedCount] = useState(0);
+
+  const fetchUnimportedCount = useCallback(async () => {
+    const res = await fetch("/api/plaid/transactions");
+    if (res.ok) {
+      const data = await res.json();
+      setUnimportedCount(data.count);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnimportedCount();
+  }, [fetchUnimportedCount]);
 
   const refreshItems = useCallback(async () => {
     const res = await fetch("/api/plaid/items");
@@ -51,13 +71,14 @@ export function LinkedAccountsSection({ initialItems }: Props) {
         });
         if (!res.ok) throw new Error("Sync failed");
         await refreshItems();
+        await fetchUnimportedCount();
       } catch {
         setSyncError("Sync failed. Please try again.");
       } finally {
         setSyncing(null);
       }
     },
-    [refreshItems]
+    [refreshItems, fetchUnimportedCount]
   );
 
   return (
@@ -69,8 +90,28 @@ export function LinkedAccountsSection({ initialItems }: Props) {
             Transactions are synced automatically via webhooks.
           </p>
         </div>
-        <ConnectBankButton onSuccess={refreshItems} />
+        <div className="flex items-center gap-2">
+          {unimportedCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => setImportOpen(true)}
+            >
+              Review {unimportedCount} transaction{unimportedCount !== 1 ? "s" : ""}
+            </Button>
+          )}
+          <ConnectBankButton onSuccess={() => { refreshItems(); fetchUnimportedCount(); }} />
+        </div>
       </div>
+
+      <PlaidImportModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        categories={categories}
+        bankAccounts={bankAccounts}
+        onImported={() => { fetchUnimportedCount(); }}
+      />
 
       {syncError && (
         <p className="text-sm text-destructive">{syncError}</p>

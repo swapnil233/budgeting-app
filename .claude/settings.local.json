@@ -21,7 +21,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx shadcn@latest add alert-dialog)",
       "Bash(node:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

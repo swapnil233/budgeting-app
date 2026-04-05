@@ -19,7 +19,7 @@ export default async function AccountsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const [accounts, plaidItems] = await Promise.all([
+  const [accounts, plaidItems, categories] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { userId: session.user.id },
       orderBy: { name: "asc" },
@@ -28,6 +28,11 @@ export default async function AccountsPage() {
       where: { userId: session.user.id },
       orderBy: { createdAt: "asc" },
       include: { plaidAccounts: { orderBy: { name: "asc" } } },
+    }),
+    prisma.category.findMany({
+      where: { userId: session.user.id },
+      orderBy: [{ group: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, group: true },
     }),
   ]);
 
@@ -63,7 +68,11 @@ export default async function AccountsPage() {
         </div>
         <AccountsTable accounts={accounts} />
         <Separator />
-        <LinkedAccountsSection initialItems={safePlaidItems} />
+        <LinkedAccountsSection
+          initialItems={safePlaidItems}
+          categories={categories}
+          bankAccounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
+        />
       </div>
     </>
   );
