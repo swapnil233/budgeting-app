@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncTransactionsForItem } from "@/lib/plaid/sync";
+import { verifyPlaidWebhook } from "@/lib/plaid/verify-webhook";
 import prisma from "@/lib/prisma";
 
 // Plaid webhook body shapes we care about.
@@ -19,14 +20,26 @@ interface PlaidWebhook {
  *
  * Plaid sends webhooks here when data changes. Point PLAID_WEBHOOK_URL at this
  * endpoint in your Plaid dashboard (or .env for sandbox testing via a tunnel).
- *
- * TODO: Add Plaid webhook signature verification for production.
- * See: https://plaid.com/docs/api/webhooks/webhook-verification/
  */
 export async function POST(req: NextRequest) {
+  const rawBody = await req.text();
+
+  // Verify webhook signature in non-sandbox environments.
+  const plaidEnv = process.env.PLAID_ENV ?? "sandbox";
+  if (plaidEnv !== "sandbox") {
+    const verificationHeader = req.headers.get("plaid-verification");
+    if (!verificationHeader) {
+      return NextResponse.json({ error: "Missing verification header" }, { status: 401 });
+    }
+    const isValid = await verifyPlaidWebhook(rawBody, verificationHeader);
+    if (!isValid) {
+      return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
+    }
+  }
+
   let body: PlaidWebhook;
   try {
-    body = await req.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
