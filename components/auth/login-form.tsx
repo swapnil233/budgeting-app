@@ -19,7 +19,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
 
   useEffect(() => {
     if (session) {
-      router.push("/dashboard/transactions");
+      router.push("/dashboard");
     }
   }, [session, router]);
 
@@ -39,7 +39,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
       setLoadingError(res.error.message || "Something went wrong.");
       setLoading(false);
     } else {
-      router.push("/dashboard/transactions");
+      router.push("/dashboard");
     }
   }
 

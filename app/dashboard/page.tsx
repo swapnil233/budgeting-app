@@ -1,6 +1,7 @@
 import { BudgetGroupsCard } from "@/components/dashboard/budget-groups-card";
 import { SpendingLineChart } from "@/components/dashboard/spending-line-chart";
 import { RecentTransactionsCard } from "@/components/dashboard/recent-transactions-card";
+import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { MonthSelector } from "@/components/shared/month-selector";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -58,7 +59,7 @@ export default async function DashboardPage({
 
   const userId = session.user.id;
 
-  const [categories, spendByCategory, inflow, currentTxns, lastMonthTxns, recentTxns] =
+  const [categories, spendByCategory, inflow, currentTxns, lastMonthTxns, recentTxns, plaidItemCount, totalTransactionCount] =
     await Promise.all([
       prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
       prisma.transaction.groupBy({
@@ -84,6 +85,8 @@ export default async function DashboardPage({
         orderBy: { date: "desc" },
         take: 7,
       }),
+      prisma.plaidItem.count({ where: { userId } }),
+      prisma.transaction.count({ where: { category: { userId } } }),
     ]);
 
   // Budget groups
@@ -114,6 +117,28 @@ export default async function DashboardPage({
     thisMonth: (thisCumulative[i] ?? 0) / 100,
     lastMonth: (lastCumulative[i] ?? 0) / 100,
   }));
+
+  const checklistItems = [
+    {
+      id: "link-bank",
+      title: "Link your bank account",
+      description: "Connect to your bank with Plaid for automatic transaction imports.",
+      completed: plaidItemCount > 0,
+    },
+    {
+      id: "import-transactions",
+      title: "Import your transactions",
+      description: "Review and import transactions from your linked bank to get started instantly.",
+      completed: totalTransactionCount > 0,
+    },
+    {
+      id: "setup-budgets",
+      title: "Set up your budgets",
+      description: "Assign budget amounts to your categories to start tracking your spending.",
+      completed: categories.some((c) => c.budgetAmount > 0),
+    },
+  ];
+  const showChecklist = checklistItems.some((item) => !item.completed);
 
   const firstName = session.user.name.split(" ")[0];
 
@@ -151,6 +176,9 @@ export default async function DashboardPage({
             </div>
           </div>
         </div>
+
+        {/* Setup checklist for new users */}
+        {showChecklist && <SetupChecklist items={checklistItems} />}
 
         {/* Two-column grid */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr] items-start">
