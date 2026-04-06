@@ -92,11 +92,58 @@ export async function syncTransactionsForItem(plaidItemId: string): Promise<Sync
     )
   );
 
+  // Propagate modifications to already-imported Transaction records.
+  if (modified.length > 0) {
+    const modifiedPlaidTxIds = modified.map((tx) => tx.transaction_id);
+    const importedModified = await prisma.plaidTransaction.findMany({
+      where: {
+        plaidTransactionId: { in: modifiedPlaidTxIds },
+        importedTransactionId: { not: null },
+      },
+      select: { plaidTransactionId: true, importedTransactionId: true },
+    });
+
+    if (importedModified.length > 0) {
+      const modifiedByPlaidId = new Map(modified.map((tx) => [tx.transaction_id, tx]));
+      await Promise.all(
+        importedModified.map((pt) => {
+          const plaidTx = modifiedByPlaidId.get(pt.plaidTransactionId)!;
+          return prisma.transaction.update({
+            where: { id: pt.importedTransactionId! },
+            data: {
+              merchant: plaidTx.merchant_name ?? plaidTx.name,
+              amount: Math.round(Math.abs(plaidTx.amount) * 100),
+              date: new Date(plaidTx.date),
+            },
+          });
+        })
+      );
+    }
+  }
+
   // Delete transactions Plaid has removed.
   if (removed.length > 0) {
+    const removedPlaidTxIds = removed.map((r) => r.transaction_id);
+
+    // Delete linked Transaction records for any imported removals.
+    const importedRemoved = await prisma.plaidTransaction.findMany({
+      where: {
+        plaidTransactionId: { in: removedPlaidTxIds },
+        importedTransactionId: { not: null },
+      },
+      select: { importedTransactionId: true },
+    });
+    if (importedRemoved.length > 0) {
+      await prisma.transaction.deleteMany({
+        where: {
+          id: { in: importedRemoved.map((r) => r.importedTransactionId!) },
+        },
+      });
+    }
+
     await prisma.plaidTransaction.deleteMany({
       where: {
-        plaidTransactionId: { in: removed.map((r) => r.transaction_id) },
+        plaidTransactionId: { in: removedPlaidTxIds },
       },
     });
   }
