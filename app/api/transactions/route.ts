@@ -1,8 +1,10 @@
 import { auth } from "@/lib/auth";
-import { fetchTransactions } from "@/lib/transactions";
+import { fetchTransactions, type SortField } from "@/lib/transactions";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+
+const VALID_SORT_FIELDS: SortField[] = ["date", "amount", "merchant", "type", "category", "account", "notes"];
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -15,6 +17,9 @@ export async function GET(req: NextRequest) {
   const pageSizeRaw = searchParams.get("pageSize") ?? "20";
   const pageSize = pageSizeRaw === "all" ? "all" as const : Math.max(1, parseInt(pageSizeRaw));
   const search = searchParams.get("search") ?? "";
+  const sortByRaw = searchParams.get("sortBy") ?? "date";
+  const sortBy = VALID_SORT_FIELDS.includes(sortByRaw as SortField) ? (sortByRaw as SortField) : "date";
+  const sortDir = searchParams.get("sortDir") === "asc" ? "asc" as const : "desc" as const;
 
   const { transactions, total } = await fetchTransactions({
     userId: session.user.id,
@@ -23,6 +28,8 @@ export async function GET(req: NextRequest) {
     page,
     pageSize,
     search: search || undefined,
+    sortBy,
+    sortDir,
   });
 
   return NextResponse.json({ transactions, total, page, pageSize });

@@ -18,9 +18,10 @@ type BankAccount = { id: string; name: string };
 interface AddTransactionButtonProps {
   categories: Category[];
   bankAccounts: BankAccount[];
+  onSuccess?: () => void;
 }
 
-export function AddTransactionButton({ categories, bankAccounts }: AddTransactionButtonProps) {
+export function AddTransactionButton({ categories, bankAccounts, onSuccess }: AddTransactionButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -38,7 +39,10 @@ export function AddTransactionButton({ categories, bankAccounts }: AddTransactio
         <TransactionForm
           categories={categories}
           bankAccounts={bankAccounts}
-          onSuccess={() => setOpen(false)}
+          onSuccess={() => {
+            setOpen(false);
+            onSuccess?.();
+          }}
         />
       </SheetContent>
     </Sheet>

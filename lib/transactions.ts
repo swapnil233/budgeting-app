@@ -1,5 +1,7 @@
 import prisma from "@/lib/prisma";
 
+export type SortField = "date" | "amount" | "merchant" | "type" | "category" | "account" | "notes";
+
 interface FetchParams {
   userId: string;
   month: number;
@@ -7,6 +9,20 @@ interface FetchParams {
   page: number;
   pageSize: number | "all";
   search?: string;
+  sortBy?: SortField;
+  sortDir?: "asc" | "desc";
+}
+
+function buildOrderBy(sortBy: SortField = "date", sortDir: "asc" | "desc" = "desc") {
+  switch (sortBy) {
+    case "amount":   return { amount: sortDir };
+    case "merchant": return { merchant: sortDir };
+    case "type":     return { type: sortDir };
+    case "notes":    return [{ notes: sortDir }, { date: "desc" as const }];
+    case "category": return { category: { name: sortDir } };
+    case "account":  return [{ bankAccount: { name: sortDir } }, { date: "desc" as const }];
+    default:         return { date: sortDir };
+  }
 }
 
 export async function fetchTransactions({
@@ -16,6 +32,8 @@ export async function fetchTransactions({
   page,
   pageSize,
   search,
+  sortBy = "date",
+  sortDir = "desc",
 }: FetchParams) {
   const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
@@ -52,7 +70,7 @@ export async function fetchTransactions({
     prisma.transaction.findMany({
       where,
       include: { category: true, bankAccount: true },
-      orderBy: { date: "desc" },
+      orderBy: buildOrderBy(sortBy, sortDir),
       skip,
       take,
     }),

@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Bar,
   BarChart,
@@ -24,6 +25,16 @@ interface BudgetBarChartProps {
 }
 
 export function BudgetBarChart({ rows }: BudgetBarChartProps) {
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
+  const mutedColor = dark ? "#8a98c8" : "#6b79a8";
+  const tooltipStyle = {
+    fontSize: 12,
+    border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "#dde1f0"}`,
+    background: dark ? "#1c1a2e" : "#ffffff",
+    color: dark ? "#f3f2ff" : "#1a1528",
+  };
+
   const chartData = rows
     .filter((r) => r.budgetAmount > 0)
     .map((r) => ({
@@ -56,17 +67,18 @@ export function BudgetBarChart({ rows }: BudgetBarChartProps) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: mutedColor }}
               angle={-45}
               textAnchor="end"
               interval={0}
             />
             <YAxis
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: mutedColor }}
               tickFormatter={(v) => `$${v}`}
             />
             <Tooltip
               formatter={(value) => formatCurrency(Number(value) * 100)}
+              contentStyle={tooltipStyle}
             />
             <Legend verticalAlign="top" />
             <Bar dataKey="Budget" fill="#6366f1" radius={[4, 4, 0, 0]} />

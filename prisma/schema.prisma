@@ -25,6 +25,7 @@ model User {
   accounts      Account[]
   bankAccounts  BankAccount[]
   categories    Category[]
+  plaidItems    PlaidItem[]
 
   @@unique([email])
   @@map("user")
@@ -137,17 +138,89 @@ enum TRANSACTION_TYPE {
 }
 
 model Transaction {
-  id            String           @id @default(uuid())
-  type          TRANSACTION_TYPE
-  merchant      String
-  amount        Int
-  notes         String?
-  review        Boolean          @default(false)
-  date          DateTime         @default(now())
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  category      Category         @relation(fields: [categoryId], references: [id])
-  categoryId    String
-  bankAccount   BankAccount?     @relation(fields: [bankAccountId], references: [id])
-  bankAccountId String?
+  id               String            @id @default(uuid())
+  type             TRANSACTION_TYPE
+  merchant         String
+  amount           Int
+  notes            String?
+  review           Boolean           @default(false)
+  date             DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  category         Category          @relation(fields: [categoryId], references: [id])
+  categoryId       String
+  bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  bankAccountId    String?
+  plaidTransaction PlaidTransaction?
+}
+
+// ── Plaid integration ──────────────────────────────────────────────────────────
+
+model PlaidItem {
+  id                   String             @id @default(uuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId               String             @unique
+  accessTokenEncrypted String
+  cursor               String?
+  institutionId        String?
+  institutionName      String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  plaidAccounts        PlaidAccount[]
+  plaidTransactions    PlaidTransaction[]
+
+  @@index([userId])
+  @@map("plaid_item")
+}
+
+model PlaidAccount {
+  id               String             @id @default(uuid())
+  plaidAccountId   String             @unique
+  plaidItemId      String
+  plaidItem        PlaidItem          @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+  name             String
+  officialName     String?
+  mask             String?
+  type             String
+  subtype          String?
+  currentBalance   Float?
+  availableBalance Float?
+  currencyCode     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  plaidTransactions PlaidTransaction[]
+
+  @@index([plaidItemId])
+  @@map("plaid_account")
+}
+
+model PlaidTransaction {
+  id                    String       @id @default(uuid())
+  plaidTransactionId    String       @unique
+  plaidItemId           String
+  plaidItem             PlaidItem    @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+  plaidAccountId        String
+  plaidAccount          PlaidAccount @relation(fields: [plaidAccountId], references: [plaidAccountId])
+  name                  String
+  merchantName          String?
+  amount                Float
+  isoCurrencyCode       String?
+  date                  DateTime
+  authorizedDate        DateTime?
+  pending               Boolean      @default(false)
+  categoryPrimary       String?
+  categoryDetailed      String?
+  rawJson               Json
+  importedAt            DateTime?
+  importedTransactionId String?      @unique
+  importedTransaction   Transaction? @relation(fields: [importedTransactionId], references: [id], onDelete: SetNull)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  @@index([plaidItemId])
+  @@index([plaidAccountId])
+  @@index([date])
+  @@index([importedAt])
+  @@map("plaid_transaction")
 }

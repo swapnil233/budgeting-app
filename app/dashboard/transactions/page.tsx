@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { fetchTransactions } from "@/lib/transactions";
+import { fetchTransactions, type SortField } from "@/lib/transactions";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -25,6 +25,8 @@ export default async function TransactionsPage({
     page?: string;
     pageSize?: string;
     search?: string;
+    sortBy?: string;
+    sortDir?: string;
   }>;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -32,12 +34,16 @@ export default async function TransactionsPage({
 
   const userId = session.user.id;
 
+  const VALID_SORT_FIELDS: SortField[] = ["date", "amount", "merchant", "type", "category", "account", "notes"];
+
   const {
     month: monthStr,
     year: yearStr,
     page: pageStr,
     pageSize: pageSizeStr,
     search,
+    sortBy: sortByStr,
+    sortDir: sortDirStr,
   } = await searchParams;
 
   const now = new Date();
@@ -46,6 +52,8 @@ export default async function TransactionsPage({
   const page = Math.max(1, parseInt(pageStr ?? "1"));
   const pageSize =
     pageSizeStr === "all" ? ("all" as const) : Math.max(1, parseInt(pageSizeStr ?? "20"));
+  const sortBy = VALID_SORT_FIELDS.includes(sortByStr as SortField) ? (sortByStr as SortField) : "date";
+  const sortDir = sortDirStr === "asc" ? "asc" as const : "desc" as const;
 
   const [{ transactions, total }, categories, bankAccounts] =
     await Promise.all([
@@ -56,6 +64,8 @@ export default async function TransactionsPage({
         page,
         pageSize,
         search: search || undefined,
+        sortBy,
+        sortDir,
       }),
       prisma.category.findMany({
         where: { userId },
@@ -100,6 +110,8 @@ export default async function TransactionsPage({
           initialSearch={search ?? ""}
           initialPage={page}
           initialPageSize={pageSize}
+          initialSortBy={sortBy}
+          initialSortDir={sortDir}
         />
       </div>
     </>
