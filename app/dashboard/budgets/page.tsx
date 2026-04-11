@@ -14,6 +14,13 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import {
+  computeMonthOccurrences,
+  groupByCategory,
+  safeFetchRecurring,
+  type RecurringInput,
+  type TransactionInput,
+} from "@/lib/recurring";
 
 export default async function BudgetsPage({
   searchParams,
@@ -33,7 +40,7 @@ export default async function BudgetsPage({
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0, 23, 59, 59);
 
-  const [categories, spendByCategory, inflowTotal] = await Promise.all([
+  const [categories, spendByCategory, inflowTotal, recurring, monthTxns] = await Promise.all([
     prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
     prisma.transaction.groupBy({
       by: ["categoryId"],
@@ -52,17 +59,56 @@ export default async function BudgetsPage({
       },
       _sum: { amount: true },
     }),
+    safeFetchRecurring({ userId }),
+    prisma.transaction.findMany({
+      where: {
+        type: "EXPENSE",
+        category: { userId },
+        date: { gte: start, lte: end },
+      },
+      select: { id: true, date: true, amount: true, type: true, categoryId: true, merchant: true },
+    }),
   ]);
 
   const spendMap = new Map(
     spendByCategory.map((s) => [s.categoryId, s._sum.amount ?? 0])
   );
 
+  const recurringInput: RecurringInput[] = recurring.map((r) => ({
+    id: r.id,
+    name: r.name,
+    amount: r.amount,
+    frequency: r.frequency,
+    dayOfMonth: r.dayOfMonth,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    active: r.active,
+    categoryId: r.categoryId,
+    bankAccountId: r.bankAccountId,
+    notes: r.notes,
+  }));
+
+  const txnInput: TransactionInput[] = monthTxns.map((t) => ({
+    id: t.id,
+    date: t.date,
+    amount: t.amount,
+    type: t.type,
+    categoryId: t.categoryId,
+    merchant: t.merchant,
+  }));
+
+  const occurrences = computeMonthOccurrences(recurringInput, txnInput, year, month);
+  const occurrencesByCategory = groupByCategory(occurrences);
+
   const rows = categories.map((cat) => {
     const spent = spendMap.get(cat.id) ?? 0;
-    const left = cat.budgetAmount - spent;
+    const catOccurrences = occurrencesByCategory.get(cat.id) ?? [];
+    const recurringExpected = catOccurrences.reduce((s, o) => s + o.expectedAmount, 0);
+    const flexBudget = cat.budgetAmount;
+    const effectiveBudget = flexBudget + recurringExpected;
+    const left = effectiveBudget - spent;
     const percentage =
-      cat.budgetAmount > 0 ? Math.round((spent / cat.budgetAmount) * 100) : 0;
+      effectiveBudget > 0 ? Math.round((spent / effectiveBudget) * 100) : 0;
     const status: "OK" | "CLOSE" | "OVER" =
       percentage > 100 ? "OVER" : percentage >= 80 ? "CLOSE" : "OK";
 
@@ -70,17 +116,44 @@ export default async function BudgetsPage({
       categoryId: cat.id,
       categoryName: cat.name,
       group: cat.group,
-      budgetAmount: cat.budgetAmount,
+      flexBudget,
+      recurringBudget: recurringExpected,
+      budgetAmount: effectiveBudget,
       spent,
       left,
       percentage,
       status,
+      recurring: catOccurrences.map((o) => ({
+        id: o.recurring.id,
+        name: o.recurring.name,
+        amount: o.recurring.amount,
+        expectedAmount: o.expectedAmount,
+        paidAmount: o.paidAmount,
+        isPaid: o.isPaid,
+        frequency: o.recurring.frequency,
+        dayOfMonth: o.recurring.dayOfMonth,
+        startDate: o.recurring.startDate instanceof Date
+          ? o.recurring.startDate.toISOString()
+          : o.recurring.startDate,
+        endDate:
+          o.recurring.endDate instanceof Date
+            ? o.recurring.endDate.toISOString()
+            : o.recurring.endDate,
+        dueDate: o.dueDate.toISOString(),
+        paymentsRemaining: o.paymentsRemaining,
+        active: o.recurring.active,
+        categoryId: o.recurring.categoryId,
+        bankAccountId: o.recurring.bankAccountId,
+        notes: o.recurring.notes,
+      })),
     };
   });
 
   const totalInflow = inflowTotal._sum.amount ?? 0;
   const totalExpenses = rows.reduce((sum, r) => sum + r.spent, 0);
   const netPosition = totalInflow - totalExpenses;
+
+  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, group: c.group }));
 
   return (
     <>
@@ -111,6 +184,7 @@ export default async function BudgetsPage({
           totalInflow={totalInflow}
           totalExpenses={totalExpenses}
           netPosition={netPosition}
+          categories={categoryOptions}
         />
       </div>
     </>

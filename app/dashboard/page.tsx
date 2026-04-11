@@ -2,6 +2,7 @@ import { BudgetGroupsCard } from "@/components/dashboard/budget-groups-card";
 import { SpendingLineChart } from "@/components/dashboard/spending-line-chart";
 import { RecentTransactionsCard } from "@/components/dashboard/recent-transactions-card";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
+import { UpcomingBillsCard } from "@/components/dashboard/upcoming-bills-card";
 import { MonthSelector } from "@/components/shared/month-selector";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,6 +11,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeFetchRecurring, upcomingOccurrences, type RecurringInput } from "@/lib/recurring";
 
 const GROUP_ORDER = ["FIXED", "SUBSCRIPTIONS", "FOOD", "LIFESTYLE", "PEOPLE_AND_PETS", "OTHER"];
 
@@ -59,7 +61,7 @@ export default async function DashboardPage({
 
   const userId = session.user.id;
 
-  const [categories, spendByCategory, inflow, currentTxns, lastMonthTxns, recentTxns, plaidItemCount, totalTransactionCount] =
+  const [categories, spendByCategory, inflow, currentTxns, lastMonthTxns, recentTxns, plaidItemCount, totalTransactionCount, recurringItems] =
     await Promise.all([
       prisma.category.findMany({ where: { userId }, orderBy: [{ group: "asc" }, { name: "asc" }] }),
       prisma.transaction.groupBy({
@@ -87,6 +89,7 @@ export default async function DashboardPage({
       }),
       prisma.plaidItem.count({ where: { userId } }),
       prisma.transaction.count({ where: { category: { userId } } }),
+      safeFetchRecurring({ userId, activeOnly: true, withCategoryName: true }),
     ]);
 
   // Budget groups
@@ -117,6 +120,36 @@ export default async function DashboardPage({
     thisMonth: (thisCumulative[i] ?? 0) / 100,
     lastMonth: (lastCumulative[i] ?? 0) / 100,
   }));
+
+  // Upcoming bills (next 7 days)
+  const UPCOMING_WINDOW_DAYS = 7;
+  const recurringInput: RecurringInput[] = recurringItems.map((r) => ({
+    id: r.id,
+    name: r.name,
+    amount: r.amount,
+    frequency: r.frequency,
+    dayOfMonth: r.dayOfMonth,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    active: r.active,
+    categoryId: r.categoryId,
+    bankAccountId: r.bankAccountId,
+    notes: r.notes,
+  }));
+  const categoryNameById = new Map(
+    recurringItems
+      .filter((r): r is typeof r & { category: { id: string; name: string } } => !!r.category)
+      .map((r) => [r.category.id, r.category.name]),
+  );
+  const upcomingBills = upcomingOccurrences(recurringInput, new Date(), UPCOMING_WINDOW_DAYS).map(
+    ({ recurring: r, dueDate }) => ({
+      id: r.id,
+      name: r.name,
+      amount: r.amount,
+      dueDate: dueDate.toISOString(),
+      categoryName: categoryNameById.get(r.categoryId) ?? "",
+    }),
+  );
 
   const checklistItems = [
     {
@@ -185,7 +218,7 @@ export default async function DashboardPage({
           {/* Left: budget groups */}
           <BudgetGroupsCard groups={budgetGroups} month={month} year={year} />
 
-          {/* Right: spending chart + recent transactions */}
+          {/* Right: spending chart + upcoming bills + recent transactions */}
           <div className="flex flex-col gap-4">
             <SpendingLineChart
               data={chartData}
@@ -193,6 +226,9 @@ export default async function DashboardPage({
               month={month}
               year={year}
             />
+            {recurringItems.length > 0 && (
+              <UpcomingBillsCard bills={upcomingBills} windowDays={UPCOMING_WINDOW_DAYS} />
+            )}
             <RecentTransactionsCard
               transactions={recentTxns}
               month={month}
