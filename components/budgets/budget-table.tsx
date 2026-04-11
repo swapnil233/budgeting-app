@@ -253,9 +253,6 @@ function FlexBudgetEditInner({
       }}
     >
       {row.budgetAmount > 0 ? formatCurrency(row.budgetAmount) : "—"}
-      {hasRecurring && (
-        <span className="ml-1 text-[10px] text-muted-foreground/60">ƒ+r</span>
-      )}
     </span>
   );
 }
