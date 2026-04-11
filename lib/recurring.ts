@@ -86,7 +86,11 @@ function occurrencesInMonth(
 
   switch (recurring.frequency) {
     case "MONTHLY": {
-      const day = clampDay(recurring.dayOfMonth ?? start.getDate(), year, month);
+      // dayOfMonth === 0 is a sentinel meaning "last day of the month", which
+      // varies (28/29/30/31) — resolve it against the target month length.
+      const requested = recurring.dayOfMonth ?? start.getDate();
+      const day =
+        requested === 0 ? daysInMonth(year, month) : clampDay(requested, year, month);
       const date = new Date(year, month - 1, day);
       if (date >= mStart && date <= mEnd && date >= start && (!end || date <= end)) {
         results.push(date);

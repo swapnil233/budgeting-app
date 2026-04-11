@@ -21,8 +21,9 @@ function parseBody(body: unknown) {
   if (!name || !categoryId || !frequency || !startDate || isNaN(startDate.getTime())) return null;
   if (!Number.isFinite(amount) || amount < 0) return null;
 
+  // dayOfMonth: 0 = "last day of month" sentinel; 1–31 = specific day.
   const dayOfMonth =
-    typeof b.dayOfMonth === "number" && b.dayOfMonth >= 1 && b.dayOfMonth <= 31
+    typeof b.dayOfMonth === "number" && b.dayOfMonth >= 0 && b.dayOfMonth <= 31
       ? Math.round(b.dayOfMonth)
       : frequency === "MONTHLY"
         ? startDate.getDate()

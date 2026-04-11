@@ -126,6 +126,30 @@ function frequencyLabel(f: RecurringFrequency): string {
   }
 }
 
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+// Day-of-month options: 1st through 31st plus a "Last day" sentinel (value "0").
+const DAY_OF_MONTH_OPTIONS: { value: string; label: string }[] = [
+  ...Array.from({ length: 31 }, (_, i) => ({
+    value: String(i + 1),
+    label: ordinal(i + 1),
+  })),
+  { value: "0", label: "Last day of month" },
+];
+
 // ── Status badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: "OK" | "CLOSE" | "OVER" }) {
@@ -611,7 +635,7 @@ export function BudgetTable({
     setRecCategoryId(row.parentCategoryId);
     setRecAmount((r.amount / 100).toFixed(2));
     setRecFrequency(r.frequency);
-    setRecDayOfMonth(r.dayOfMonth ? String(r.dayOfMonth) : "");
+    setRecDayOfMonth(r.dayOfMonth != null ? String(r.dayOfMonth) : "");
     setRecStartDate(r.startDate.slice(0, 10));
     setRecEndDate(r.endDate ? r.endDate.slice(0, 10) : "");
     setRecNotes(r.notes ?? "");
@@ -958,15 +982,21 @@ export function BudgetTable({
             {recFrequency === "MONTHLY" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="rec-day">Day of month</Label>
-                <Input
-                  id="rec-day"
-                  type="number"
-                  min="1"
-                  max="31"
-                  placeholder="1–31"
-                  value={recDayOfMonth}
-                  onChange={(e) => setRecDayOfMonth(e.target.value)}
-                />
+                <Select value={recDayOfMonth} onValueChange={setRecDayOfMonth}>
+                  <SelectTrigger id="rec-day">
+                    <SelectValue placeholder="Select a day" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {DAY_OF_MONTH_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  &quot;Last day&quot; adjusts automatically (e.g. Feb 28, Apr 30, May 31).
+                </p>
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
