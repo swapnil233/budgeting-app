@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     data: {
       name: body.name,
       group: body.group,
+      colour: body.colour ?? null,
       budgetAmount: body.budgetAmount ?? 0,
       userId: session.user.id,
     },

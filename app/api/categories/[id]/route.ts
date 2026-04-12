@@ -18,6 +18,7 @@ export async function PUT(
     data: {
       name: body.name,
       group: body.group,
+      colour: body.colour ?? null,
       budgetAmount: body.budgetAmount ?? 0,
     },
   });

@@ -22,7 +22,8 @@
       "Bash(npx shadcn@latest add alert-dialog)",
       "Bash(node:*)",
       "Bash(npx prisma:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep -l \"RecurringExpense\" lib/generated/prisma/*.ts)"
     ]
   }
 }

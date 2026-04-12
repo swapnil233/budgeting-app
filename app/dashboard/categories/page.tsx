@@ -1,4 +1,4 @@
-import { CategoriesTable } from "@/components/categories/categories-table";
+import { CategoriesPageClient } from "@/components/categories/categories-page-client";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -44,13 +44,7 @@ export default async function CategoriesPage() {
         </Breadcrumb>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4">
-        <div>
-          <h1 className="text-lg font-semibold">Categories</h1>
-          <p className="text-sm text-muted-foreground">
-            Organise spending into groups. Click a budget amount to edit it inline.
-          </p>
-        </div>
-        <CategoriesTable categories={categories} />
+        <CategoriesPageClient categories={categories} />
       </div>
     </>
   );
